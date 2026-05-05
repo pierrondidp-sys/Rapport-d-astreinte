@@ -320,6 +320,13 @@ if (photos.length > 0) {
 
 async function saveDraft() {
 
+  const ville = v('ville') || 'VILLE';
+  const now = new Date();
+  const id =
+    now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
+    '_' + ville.toUpperCase().replace(/\s+/g, '_');
+
+  // Photos en Base64
   const photosToSave = [];
   for (const p of photos) {
     photosToSave.push({
@@ -330,7 +337,10 @@ async function saveDraft() {
     });
   }
 
-  const data = {
+  const draft = {
+    id,
+    savedAt: now.toISOString(),
+    ville,
     form: {
       ville: v('ville'),
       adresse: v('adresse'),
@@ -345,30 +355,56 @@ async function saveDraft() {
     photos: photosToSave
   };
 
-  localStorage.setItem('astreinteDraft', JSON.stringify(data));
-  alert('Brouillon sauvegardé (avec photos).');
+  // Sauvegarde du brouillon
+  localStorage.setItem('astreinteDraft_' + id, JSON.stringify(draft));
+
+  // Index des sauvegardes
+  const index =
+    JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
+
+  if (!index.includes(id)) {
+    index.push(id);
+    localStorage.setItem(
+      'astreinteDraftsIndex',
+      JSON.stringify(index)
+    );
+  }
+
+  alert('Brouillon sauvegardé ✅\n\nID : ' + id);
 }
 
 function loadDraft() {
 
-  const raw = localStorage.getItem('astreinteDraft');
-  if (!raw) {
+  const index =
+    JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
+
+  if (index.length === 0) {
     alert('Aucune sauvegarde trouvée.');
     return;
   }
 
-  const data = JSON.parse(raw);
+  const choice = prompt(
+    'Saisissez le numéro de la sauvegarde à charger :\n\n' +
+    index.map((id, i) => `${i + 1} – ${id}`).join('\n')
+  );
+
+  const i = parseInt(choice, 10) - 1;
+  if (isNaN(i) || !index[i]) return;
+
+  const draft = JSON.parse(
+    localStorage.getItem('astreinteDraft_' + index[i])
+  );
 
   // Formulaire
-  for (const k in data.form) {
+  for (const k in draft.form) {
     const el = document.getElementById(k);
-    if (el) el.value = data.form[k];
+    if (el) el.value = draft.form[k];
   }
 
   // Photos
-  photos = data.photos.map(p => ({
+  photos = draft.photos.map(p => ({
     base64: p.base64,
-    dataUrl: p.base64,       // ✅ utilisable directement par jsPDF
+    dataUrl: p.base64,
     timestamp: new Date(p.timestamp),
     lat: p.lat,
     lng: p.lng,
@@ -376,7 +412,47 @@ function loadDraft() {
   }));
 
   renderPreview();
-  alert('Brouillon rechargé (photos incluses).');
+  alert('Brouillon chargé ✅');
+}
+
+function deleteDraft() {
+
+  const index =
+    JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
+
+  if (index.length === 0) {
+    alert('Aucune sauvegarde à supprimer.');
+    return;
+  }
+
+  const choice = prompt(
+    'Saisissez le numéro de la sauvegarde à SUPPRIMER :\n\n' +
+    index.map((id, i) => `${i + 1} – ${id}`).join('\n')
+  );
+
+  const i = parseInt(choice, 10) - 1;
+  if (isNaN(i) || !index[i]) return;
+
+  const id = index[i];
+
+  // Confirmation sécurité
+  const ok = confirm(
+    'Voulez-vous vraiment supprimer cette sauvegarde ?\n\n' + id
+  );
+
+  if (!ok) return;
+
+  // Suppression du brouillon
+  localStorage.removeItem('astreinteDraft_' + id);
+
+  // Mise à jour de l’index
+  index.splice(i, 1);
+  localStorage.setItem(
+    'astreinteDraftsIndex',
+    JSON.stringify(index)
+  );
+
+  alert('Sauvegarde supprimée ✅');
 }
 
 function sendMail() {
