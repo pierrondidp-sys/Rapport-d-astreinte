@@ -153,4 +153,138 @@ function renderPreview() {
   });
 }
 
-// Les fonctions exportWord() et exportPDF() restent inchangées
+function exportPDF() {
+
+  const pdf = new jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+
+  const pageW = pdf.internal.pageSize.getWidth();
+  const margin = 15;
+  const tableX = margin;
+  const tableW = pageW - margin * 2;
+
+  const colLabelW = 55;            // ≈ 30 %
+  const colValueW = tableW - colLabelW;
+
+  let y = margin;
+  const lineH = 6;
+
+  pdf.setDrawColor(0);
+  pdf.setLineWidth(0.8);
+
+  // ── Titre (cellule fusionnée) ─────────────────────────────────
+  pdf.rect(tableX, y, tableW, 10);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(12);
+  pdf.text(
+    'INTERVENTION SOUS ASTREINTES',
+    tableX + tableW / 2,
+    y + 7,
+    { align: 'center' }
+  );
+
+  y += 10;
+
+  // ── Données ───────────────────────────────────────────────────
+  const rows = [
+    ['VILLE', v('ville')],
+    ['ADRESSE', v('adresse')],
+    ["Agent d'astreinte", AGENT_D_ASTREINTE],
+    ["Date d’intervention", v('date')],
+    ["Heure d’appel", v('heureDebut')],
+    ["Origine de l’appel", v('origine')],
+    ["Heure de Fin d’intervention", v('heureFin')],
+    ["Objet de l’intervention", v('objet')],
+    ["Nature de l’intervention", v('nature')],
+    ["Autres personnes appelées", v('autres')]
+  ];
+
+  rows.forEach(([label, value]) => {
+
+    value = value || '';
+
+    pdf.setFont('helvetica', 'bolditalic');
+    pdf.setFontSize(10);
+
+    const lLines = pdf.splitTextToSize(label, colLabelW - 4);
+
+    pdf.setFont('helvetica', 'normal');
+    const vLines = pdf.splitTextToSize(value, colValueW - 4);
+
+    const rowH = Math.max(lLines.length, vLines.length) * lineH + 4;
+
+    // Bordures
+    pdf.rect(tableX, y, colLabelW, rowH);
+    pdf.rect(tableX + colLabelW, y, colValueW, rowH);
+
+    // Texte libellé
+    pdf.setFont('helvetica', 'bolditalic');
+    pdf.text(lLines, tableX + 2, y + lineH - 1, { baseline: 'top' });
+
+    // Texte valeur
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(
+      vLines,
+      tableX + colLabelW + 2,
+      y + lineH - 1,
+      { baseline: 'top' }
+    );
+
+    y += rowH;
+  });
+
+  pdf.save('Intervention_sous_astreintes.pdf');
+}
+
+// ── Sauvegarde locale ─────────────────────────────────────────────────────────
+
+function saveDraft() {
+  const data = {
+    form: {
+      ville: v('ville'),
+      adresse: v('adresse'),
+      date: v('date'),
+      heureDebut: v('heureDebut'),
+      origine: v('origine'),
+      heureFin: v('heureFin'),
+      objet: v('objet'),
+      nature: v('nature'),
+      autres: v('autres')
+    },
+    photos: photos.map(p => ({
+      dataUrl: p.dataUrl,
+      timestamp: p.timestamp,
+      lat: p.lat,
+      lng: p.lng
+    }))
+  };
+
+  localStorage.setItem('astreinteDraft', JSON.stringify(data));
+  alert('Brouillon sauvegardé.');
+}
+
+function loadDraft() {
+  const raw = localStorage.getItem('astreinteDraft');
+  if (!raw) {
+    alert('Aucune sauvegarde trouvée.');
+    return;
+  }
+
+  const data = JSON.parse(raw);
+
+  // Restauration formulaire
+  for (const k in data.form) {
+    const el = document.getElementById(k);
+    if (el) el.value = data.form[k];
+  }
+
+  // Restauration photos
+  photos = data.photos.map(p => ({
+    dataUrl: p.dataUrl,
+    timestamp: new Date(p.timestamp),
+    lat: p.lat,
+    lng: p.lng
+  }));
+
+  renderPreview();
+  alert('Brouillon chargé.');
+}
