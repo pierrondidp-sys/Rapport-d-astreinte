@@ -105,3 +105,40 @@ input, select, textarea, button { width: 100%; margin-top: 4px; padding: 8px; bo
 .btn-delete:active {
   background: #fde0e0;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   CHAMPS DU FORMULAIRE
+   - Police Aptos
+   - Texte centré verticalement
+   - Champs uniquement (pas boutons)
+───────────────────────────────────────────────────────────── */
+
+/* Champs simples */
+form input,
+form select,
+form textarea {
+  font-family: Aptos, "Segoe UI", system-ui, sans-serif;
+  font-size: 15px;
+  box-sizing: border-box;
+}
+
+/* Input & select : centrage vertical réel */
+form input,
+form select {
+  height: 44px;
+  line-height: 44px;      /* ✅ centrage vertical */
+  padding: 0 10px;
+}
+
+/* Textarea : centrage visuel optimal */
+form textarea {
+  padding: 10px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+/* Évite que les boutons héritent du style */
+form button {
+  font-family: inherit;
+}
+
