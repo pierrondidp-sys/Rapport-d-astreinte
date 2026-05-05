@@ -158,11 +158,13 @@ function exportPDF() {
   const pdf = new jspdf.jsPDF({ unit: 'mm', format: 'a4' });
 
   const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
   const margin = 15;
+
   const tableX = margin;
   const tableW = pageW - margin * 2;
 
-  const colLabelW = 55;            // ≈ 30 %
+  const colLabelW = 55;
   const colValueW = tableW - colLabelW;
 
   let y = margin;
@@ -171,7 +173,7 @@ function exportPDF() {
   pdf.setDrawColor(0);
   pdf.setLineWidth(0.8);
 
-  // ── Titre (cellule fusionnée) ─────────────────────────────────
+  // ── TITRE ───────────────────────────────────────────────────────────────
   pdf.rect(tableX, y, tableW, 10);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(12);
@@ -181,10 +183,9 @@ function exportPDF() {
     y + 7,
     { align: 'center' }
   );
-
   y += 10;
 
-  // ── Données ───────────────────────────────────────────────────
+  // ── TABLEAU PRINCIPAL ───────────────────────────────────────────────────
   const rows = [
     ['VILLE', v('ville')],
     ['ADRESSE', v('adresse')],
@@ -204,7 +205,6 @@ function exportPDF() {
 
     pdf.setFont('helvetica', 'bolditalic');
     pdf.setFontSize(10);
-
     const lLines = pdf.splitTextToSize(label, colLabelW - 4);
 
     pdf.setFont('helvetica', 'normal');
@@ -212,28 +212,74 @@ function exportPDF() {
 
     const rowH = Math.max(lLines.length, vLines.length) * lineH + 4;
 
-    // Bordures
     pdf.rect(tableX, y, colLabelW, rowH);
     pdf.rect(tableX + colLabelW, y, colValueW, rowH);
 
-    // Texte libellé
     pdf.setFont('helvetica', 'bolditalic');
     pdf.text(lLines, tableX + 2, y + lineH - 1, { baseline: 'top' });
 
-    // Texte valeur
     pdf.setFont('helvetica', 'normal');
-    pdf.text(
-      vLines,
-      tableX + colLabelW + 2,
-      y + lineH - 1,
-      { baseline: 'top' }
-    );
+    pdf.text(vLines, tableX + colLabelW + 2, y + lineH - 1, {
+      baseline: 'top'
+    });
 
     y += rowH;
   });
 
+  // ── PHOTOS (PAGE(S) SUIVANTE(S)) ─────────────────────────────────────────
+  if (photos.length > 0) {
+
+    pdf.addPage();
+    y = margin;
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.text('PHOTOGRAPHIES', margin, y);
+    y += 8;
+
+    photos.forEach((ph, index) => {
+
+      const imgW = 70;
+      const imgH = 53;
+
+      if (y + imgH + 25 > pageH - margin) {
+        pdf.addPage();
+        y = margin;
+      }
+
+      try {
+        pdf.addImage(ph.dataUrl, 'JPEG', margin, y, imgW, imgH);
+      } catch (e) {
+        console.warn('Image non ajoutée', e);
+      }
+
+      const metaX = margin + imgW + 5;
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
+      pdf.text(`Photo ${index + 1}`, metaX, y + 7);
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      pdf.text(
+        'Heure : ' + formatDate(ph.timestamp),
+        metaX,
+        y + 15
+      );
+
+      const gps = ph.lat != null
+        ? `GPS : ${ph.lat.toFixed(6)}, ${ph.lng.toFixed(6)}`
+        : 'GPS : non disponible';
+
+      pdf.text(gps, metaX, y + 22);
+
+      y += imgH + 15;
+    });
+  }
+
   pdf.save('Intervention_sous_astreintes.pdf');
 }
+
 
 // ── Sauvegarde locale ─────────────────────────────────────────────────────────
 
