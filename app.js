@@ -167,6 +167,7 @@ function exportPDF() {
   const pdf = new jspdf.jsPDF({ unit: 'mm', format: 'a4' });
 
   const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
   const margin = 15;
   const tableX = margin;
   const tableW = pageW - margin * 2;
