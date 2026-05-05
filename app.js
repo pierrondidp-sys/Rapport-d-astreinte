@@ -378,3 +378,23 @@ function loadDraft() {
   renderPreview();
   alert('Brouillon rechargé (photos incluses).');
 }
+
+function sendMail() {
+
+  const ville = v('ville') || '';
+
+  const subject = 'Rapport d’intervention – ' + ville;
+
+  const body =
+    'Bonjour,\n\n' +
+    'Je vous prie de bien vouloir trouver, en pièce jointe, ' +
+    'un rapport d’intervention concernant la ville de ' + ville + '.\n\n' +
+    'Cordialement.';
+
+  const mailto =
+    'mailto:' +
+    '?subject=' + encodeURIComponent(subject) +
+    '&body=' + encodeURIComponent(body);
+
+  window.location.href = mailto;
+}
