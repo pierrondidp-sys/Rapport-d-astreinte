@@ -383,18 +383,22 @@ function sendMail() {
 
   const ville = v('ville') || '';
 
-  const subject = 'Rapport d’intervention – ' + ville;
+  // ⚠️ ADRESSE À ADAPTER (peut être générique)
+  const to = 'astreintes@gpso.fr';
+
+  const subject = `Rapport d'intervention - ${ville}`;
 
   const body =
-    'Bonjour,\n\n' +
-    'Je vous prie de bien vouloir trouver, en pièce jointe, ' +
-    'un rapport d’intervention concernant la ville de ' + ville + '.\n\n' +
-    'Cordialement.';
+    `Bonjour,\n\n` +
+    `Je vous prie de bien vouloir trouver, en pièce jointe, ` +
+    `un rapport d'intervention concernant la ville de ${ville}.\n\n` +
+    `Cordialement.`;
 
   const mailto =
-    'mailto:' +
-    '?subject=' + encodeURIComponent(subject) +
-    '&body=' + encodeURIComponent(body);
+    `mailto:${encodeURIComponent(to)}` +
+    `?subject=${encodeURIComponent(subject)}` +
+    `&body=${encodeURIComponent(body)}`;
 
-  window.location.href = mailto;
+  // ✅ Outlook-friendly
+  window.open(mailto, '_self');
 }
