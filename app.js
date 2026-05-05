@@ -511,6 +511,62 @@ function exportDraft() {
   URL.revokeObjectURL(url);
 }
 
+function exportDraftByMail() {
+
+  const index =
+    JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
+
+  if (index.length === 0) {
+    alert('Aucune sauvegarde à exporter.');
+    return;
+  }
+
+  // Choix de la sauvegarde
+  const choice = prompt(
+    'Exporter quelle sauvegarde ?\n\n' +
+    index.map((id, i) => `${i + 1} – ${id}`).join('\n')
+  );
+
+  const i = parseInt(choice, 10) - 1;
+  if (isNaN(i) || !index[i]) return;
+
+  const id = index[i];
+  const raw = localStorage.getItem('astreinteDraft_' + id);
+  const draft = JSON.parse(raw);
+
+  // ── Export fichier JSON ──────────────────────────────
+  const blob = new Blob([raw], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'astreinte_' + id + '.json';
+  a.click();
+
+  URL.revokeObjectURL(url);
+
+  // ── Préparation du mail Outlook ──────────────────────
+  const ville = draft.ville || draft.form?.ville || '';
+  const to = 'astreintes@gpso.fr';
+
+  const subject = `Sauvegarde intervention – ${ville}`;
+
+  const body =
+`Bonjour,
+
+Je vous prie de bien vouloir trouver ci-joint la sauvegarde
+d’un rapport d’intervention concernant la ville de ${ville}.
+
+Cordialement.`;
+
+  const mailto =
+    `mailto:${encodeURIComponent(to)}` +
+    `?subject=${encodeURIComponent(subject)}` +
+    `&body=${encodeURIComponent(body)}`;
+
+  window.open(mailto, '_self');
+}
+
 function importDraft() {
   document.getElementById('importFile').click();
 }
