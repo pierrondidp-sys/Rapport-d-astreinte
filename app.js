@@ -478,3 +478,79 @@ function sendMail() {
   // ✅ Outlook-friendly
   window.open(mailto, '_self');
 }
+
+function exportDraft() {
+
+  const index =
+    JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
+
+  if (index.length === 0) {
+    alert('Aucune sauvegarde à exporter.');
+    return;
+  }
+
+  const choice = prompt(
+    'Exporter quelle sauvegarde ?\n\n' +
+    index.map((id, i) => `${i + 1} – ${id}`).join('\n')
+  );
+
+  const i = parseInt(choice, 10) - 1;
+  if (isNaN(i) || !index[i]) return;
+
+  const id = index[i];
+  const draft = localStorage.getItem('astreinteDraft_' + id);
+
+  const blob = new Blob([draft], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'astreinte_' + id + '.json';
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+
+function importDraft() {
+  document.getElementById('importFile').click();
+}
+
+document.getElementById('importFile').addEventListener('change', function (e) {
+
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+
+    try {
+      const draft = JSON.parse(reader.result);
+      const id = draft.id || ('import_' + Date.now());
+
+      // Enregistrement
+      localStorage.setItem(
+        'astreinteDraft_' + id,
+        JSON.stringify(draft)
+      );
+
+      const index =
+        JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
+
+      if (!index.includes(id)) {
+        index.push(id);
+        localStorage.setItem(
+          'astreinteDraftsIndex',
+          JSON.stringify(index)
+        );
+      }
+
+      alert('Sauvegarde importée avec succès ✅');
+
+    } catch (err) {
+      alert('Fichier invalide');
+    }
+  };
+
+  reader.readAsText(file);
+  e.target.value = '';
+});
