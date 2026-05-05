@@ -167,34 +167,31 @@ function exportPDF() {
   const pdf = new jspdf.jsPDF({ unit: 'mm', format: 'a4' });
 
   const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
   const margin = 15;
-
   const tableX = margin;
   const tableW = pageW - margin * 2;
 
   const colLabelW = 55;
   const colValueW = tableW - colLabelW;
 
-  let y = margin;
   const lineH = 6;
+  let y = margin;
 
   pdf.setDrawColor(0);
   pdf.setLineWidth(0.8);
 
-  // ── TITRE ───────────────────────────────────────────────────────────────
+  // ── TITRE ─────────────────────────────────────────────
   pdf.rect(tableX, y, tableW, 10);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(12);
-  pdf.text(
-    'INTERVENTION SOUS ASTREINTES',
+  pdf.text('INTERVENTION SOUS ASTREINTES',
     tableX + tableW / 2,
     y + 7,
     { align: 'center' }
   );
   y += 10;
 
-  // ── TABLEAU PRINCIPAL ───────────────────────────────────────────────────
+  // ── TABLEAU ───────────────────────────────────────────
   const rows = [
     ['VILLE', v('ville')],
     ['ADRESSE', v('adresse')],
@@ -212,25 +209,38 @@ function exportPDF() {
 
     value = value || '';
 
-    pdf.setFont('helvetica', 'bolditalic');
     pdf.setFontSize(10);
+
+    // Découpage du texte
+    pdf.setFont('helvetica', 'bolditalic');
     const lLines = pdf.splitTextToSize(label, colLabelW - 4);
 
     pdf.setFont('helvetica', 'normal');
     const vLines = pdf.splitTextToSize(value, colValueW - 4);
 
-    const rowH = Math.max(lLines.length, vLines.length) * lineH + 4;
+    const rowH =
+      Math.max(lLines.length, vLines.length) * lineH + 8;
 
+    // Bordures
     pdf.rect(tableX, y, colLabelW, rowH);
     pdf.rect(tableX + colLabelW, y, colValueW, rowH);
 
-    pdf.setFont('helvetica', 'bolditalic');
-    pdf.text(lLines, tableX + 2, y + lineH - 1, { baseline: 'top' });
+    // ✅ Centrage vertical calculé
+    const labelTextY = y + (rowH - lLines.length * lineH) / 2 + lineH - 1;
+    const valueTextY = y + (rowH - vLines.length * lineH) / 2 + lineH - 1;
 
+    // Texte libellé
+    pdf.setFont('helvetica', 'bolditalic');
+    pdf.text(lLines, tableX + 2, labelTextY, { baseline: 'top' });
+
+    // Texte valeur
     pdf.setFont('helvetica', 'normal');
-    pdf.text(vLines, tableX + colLabelW + 2, y + lineH - 1, {
-      baseline: 'top'
-    });
+    pdf.text(
+      vLines,
+      tableX + colLabelW + 2,
+      valueTextY,
+      { baseline: 'top' }
+    );
 
     y += rowH;
   });
@@ -314,7 +324,6 @@ if (photos.length > 0) {
 
   pdf.save('Intervention_sous_astreintes.pdf');
 }
-
 
 // ── Sauvegarde locale ─────────────────────────────────────────────────────────
 
