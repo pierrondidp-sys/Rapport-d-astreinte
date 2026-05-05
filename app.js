@@ -226,56 +226,82 @@ function exportPDF() {
     y += rowH;
   });
 
-  // ── PHOTOS (PAGE(S) SUIVANTE(S)) ─────────────────────────────────────────
-  if (photos.length > 0) {
+ // ── PHOTOS (PAGE(S) SUIVANTE(S)) ─────────────────────────────────────────
+if (photos.length > 0) {
 
-    pdf.addPage();
-    y = margin;
+  pdf.addPage();
+  y = margin;
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(11);
+  pdf.text('PHOTOGRAPHIES', margin, y);
+  y += 8;
+
+  photos.forEach((ph, index) => {
+
+    const blockH = 75;
+    const imgW = 60;
+    const imgH = 45;
+
+    if (y + blockH > pageH - margin) {
+      pdf.addPage();
+      y = margin;
+    }
+
+    // ✅ Cadre principal
+    pdf.setLineWidth(0.6);
+    pdf.rect(margin, y, pageW - margin * 2, blockH);
+
+    // ✅ En-tête du cadre
+    pdf.setLineWidth(0.4);
+    pdf.rect(margin, y, pageW - margin * 2, 8);
 
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(11);
-    pdf.text('PHOTOGRAPHIES', margin, y);
-    y += 8;
+    pdf.setFontSize(10);
+    pdf.text(
+      `PHOTO N° ${index + 1}`,
+      margin + 2,
+      y + 6
+    );
 
-    photos.forEach((ph, index) => {
+    // ✅ Image
+    const imgY = y + 12;
+    try {
+      pdf.addImage(ph.dataUrl, 'JPEG', margin + 3, imgY, imgW, imgH);
+    } catch (e) {}
 
-      const imgW = 70;
-      const imgH = 53;
+    // ✅ Zone métadonnées
+    const metaX = margin + imgW + 8;
+    let metaY = imgY + 5;
 
-      if (y + imgH + 25 > pageH - margin) {
-        pdf.addPage();
-        y = margin;
-      }
+    pdf.setFont('helvetica', 'bolditalic');
+    pdf.setFontSize(9);
+    pdf.text('Date / heure :', metaX, metaY);
 
-      try {
-        pdf.addImage(ph.dataUrl, 'JPEG', margin, y, imgW, imgH);
-      } catch (e) {
-        console.warn('Image non ajoutée', e);
-      }
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(
+      formatDate(ph.timestamp),
+      metaX + 30,
+      metaY
+    );
 
-      const metaX = margin + imgW + 5;
+    metaY += 8;
 
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(10);
-      pdf.text(`Photo ${index + 1}`, metaX, y + 7);
+    pdf.setFont('helvetica', 'bolditalic');
+    pdf.text('Localisation GPS :', metaX, metaY);
 
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(9);
-      pdf.text(
-        'Heure : ' + formatDate(ph.timestamp),
-        metaX,
-        y + 15
-      );
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(
+      ph.lat != null
+        ? `${ph.lat.toFixed(6)}, ${ph.lng.toFixed(6)}`
+        : 'Non disponible',
+      metaX + 30,
+      metaY
+    );
 
-      const gps = ph.lat != null
-        ? `GPS : ${ph.lat.toFixed(6)}, ${ph.lng.toFixed(6)}`
-        : 'GPS : non disponible';
-
-      pdf.text(gps, metaX, y + 22);
-
-      y += imgH + 15;
-    });
-  }
+    y += blockH + 6;
+  });
+}
 
   pdf.save('Intervention_sous_astreintes.pdf');
 }
