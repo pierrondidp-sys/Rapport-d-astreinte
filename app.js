@@ -1,8 +1,6 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // AGENT D'ASTREINTE — modifier uniquement cette ligne
 // ──────────────────────────────────────────────────────────────────────────────
-const AGENT_D_ASTREINTE = "NOM Prénom";
-
 function v(id) { return document.getElementById(id).value; }
 
 let photos = [];
@@ -196,7 +194,7 @@ function exportPDF() {
   const rows = [
     ['VILLE', v('ville')],
     ['ADRESSE', v('adresse')],
-    ["Agent d'astreinte", AGENT_D_ASTREINTE],
+    ["Agent d'astreinte", v('agentAstreinte')],
     ["Date d’intervention", v('date')],
     ["Heure d’appel", v('heureDebut')],
     ["Origine de l’appel", v('origine')],
@@ -354,6 +352,7 @@ async function saveDraft() {
     form: {
       ville: v('ville'),
       adresse: v('adresse'),
+      agentAstreinte: v('agentAstreinte'),
       date: v('date'),
       heureDebut: v('heureDebut'),
       origine: v('origine'),
