@@ -153,6 +153,15 @@ function renderPreview() {
   });
 }
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function exportPDF() {
 
   const pdf = new jspdf.jsPDF({ unit: 'mm', format: 'a4' });
@@ -309,7 +318,18 @@ if (photos.length > 0) {
 
 // ── Sauvegarde locale ─────────────────────────────────────────────────────────
 
-function saveDraft() {
+async function saveDraft() {
+
+  const photosToSave = [];
+  for (const p of photos) {
+    photosToSave.push({
+      base64: p.file ? await fileToBase64(p.file) : p.base64,
+      timestamp: p.timestamp,
+      lat: p.lat,
+      lng: p.lng
+    });
+  }
+
   const data = {
     form: {
       ville: v('ville'),
@@ -322,19 +342,15 @@ function saveDraft() {
       nature: v('nature'),
       autres: v('autres')
     },
-    photos: photos.map(p => ({
-      dataUrl: p.dataUrl,
-      timestamp: p.timestamp,
-      lat: p.lat,
-      lng: p.lng
-    }))
+    photos: photosToSave
   };
 
   localStorage.setItem('astreinteDraft', JSON.stringify(data));
-  alert('Brouillon sauvegardé.');
+  alert('Brouillon sauvegardé (avec photos).');
 }
 
 function loadDraft() {
+
   const raw = localStorage.getItem('astreinteDraft');
   if (!raw) {
     alert('Aucune sauvegarde trouvée.');
@@ -343,20 +359,22 @@ function loadDraft() {
 
   const data = JSON.parse(raw);
 
-  // Restauration formulaire
+  // Formulaire
   for (const k in data.form) {
     const el = document.getElementById(k);
     if (el) el.value = data.form[k];
   }
 
-  // Restauration photos
+  // Photos
   photos = data.photos.map(p => ({
-    dataUrl: p.dataUrl,
+    base64: p.base64,
+    dataUrl: p.base64,       // ✅ utilisable directement par jsPDF
     timestamp: new Date(p.timestamp),
     lat: p.lat,
-    lng: p.lng
+    lng: p.lng,
+    file: null
   }));
 
   renderPreview();
-  alert('Brouillon chargé.');
+  alert('Brouillon rechargé (photos incluses).');
 }
