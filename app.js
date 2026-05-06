@@ -388,7 +388,6 @@ const photosToSave = photos.map(p => ({
   lat: p.lat,
   lng: p.lng
 }));
-  }
 
   const draft = {
     id,
@@ -649,7 +648,7 @@ async function exportDirect() {
   lat: p.lat,
   lng: p.lng
 }));
-  }
+  
 
   const data = {
     id,
