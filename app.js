@@ -656,6 +656,20 @@ function exportDirect() {
   URL.revokeObjectURL(url);
 }
 
+function buildAgentEmail(agent) {
+  if (!agent) return '';
+
+  return agent
+    .trim()
+    .toLowerCase()
+    // suppression des accents
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    // espaces multiples → un point
+    .replace(/\s+/g, '.')
+    + '@seineouest.fr';
+}
+
 function exportDraftByMail() {
 
   // ─────────────────────────────────────────────────────────
@@ -711,33 +725,37 @@ function exportDraftByMail() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  // ─────────────────────────────────────────────────────────
-  // 3) OUVERTURE DU MAIL (APRÈS L’EXPORT)
-  // ─────────────────────────────────────────────────────────
+  // // ─────────────────────────────────────────────────────────
+// 3) OUVERTURE DU MAIL (APRÈS L’EXPORT)
+// ─────────────────────────────────────────────────────────
 
-  const to = 'astreintes@gpso.fr';
+const agent = v('agentAstreinte');
+const to = buildAgentEmail(agent);
 
-  const subject = `Sauvegarde intervention – ${ville}`;
-
-  const body =
-    `Bonjour,\n\n` +
-    `Je vous prie de bien vouloir trouver en pièce jointe ` +
-    `la sauvegarde d’un rapport d’intervention concernant ` +
-    `la ville de ${ville}.\n\n` +
-    `Cordialement.`;
-
-  const mailto =
-    `mailto:${encodeURIComponent(to)}` +
-    `?subject=${encodeURIComponent(subject)}` +
-    `&body=${encodeURIComponent(body)}`;
-
-  // Ouverture volontairement après le téléchargement
-  setTimeout(() => {
-    window.open(mailto, '_self');
-  }, 300);
+if (!to) {
+  alert("Impossible de déterminer l'adresse mail de l’agent.");
+  return;
 }
 
-// ─────────────────────────────────────────────────────────────
+const subject = `Sauvegarde intervention – ${ville}`;
+
+const body =
+  `Bonjour,\n\n` +
+  `Je vous prie de bien vouloir trouver en pièce jointe ` +
+  `la sauvegarde d’un rapport d’intervention concernant ` +
+  `la ville de ${ville}.\n\n` +
+  `Cordialement.`;
+
+const mailto =
+  `mailto:${encodeURIComponent(to)}` +
+  `?subject=${encodeURIComponent(subject)}` +
+  `&body=${encodeURIComponent(body)}`;
+
+setTimeout(() => {
+  window.open(mailto, '_self');
+}, 300);
+
+─────────────────────────────────────────────────────────────
 // Désactivation intelligente du bouton Dictée sur mobile Android
 // (Edge / Chrome Android : Web Speech non fiable)
 // ─────────────────────────────────────────────────────────────
