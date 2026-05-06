@@ -382,15 +382,12 @@ async function saveDraft() {
     now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
     '_' + ville.toUpperCase().replace(/\s+/g, '_');
 
-  // Photos en Base64
-  const photosToSave = [];
-  for (const p of photos) {
-    photosToSave.push({
-  base64: p.base64 || (p.file ? await fileToBase64(p.file) : null),
+ // Photos : métadonnées uniquement (PAS de Base64)
+const photosToSave = photos.map(p => ({
   timestamp: p.timestamp,
   lat: p.lat,
   lng: p.lng
-});
+}));
   }
 
   const draft = {
@@ -468,14 +465,13 @@ function loadDraft() {
   }
 
   // Photos
-  photos = draft.photos.map(p => ({
-    base64: p.base64,
-    dataUrl: p.base64,
-    timestamp: new Date(p.timestamp),
-    lat: p.lat,
-    lng: p.lng,
-    file: null
-  }));
+photos = (draft.photos || []).map(p => ({
+  dataUrl: null,          // pas d’image rechargée
+  timestamp: new Date(p.timestamp),
+  lat: p.lat,
+  lng: p.lng,
+  file: null
+}));
 
   renderPreview();
   alert('Brouillon chargé ✅');
@@ -648,15 +644,11 @@ async function exportDirect() {
     now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
     '_' + ville.toUpperCase().replace(/\s+/g, '_');
 
-  // ✅ Conversion Base64 des photos nouvellement capturées (Object URL → Base64)
-  const photosToExport = [];
-  for (const p of photos) {
-    photosToExport.push({
-      base64: p.base64 || (p.file ? await fileToBase64(p.file) : null),
-      timestamp: p.timestamp,
-      lat: p.lat,
-      lng: p.lng
-    });
+  const photosToExport = photos.map(p => ({
+  timestamp: p.timestamp,
+  lat: p.lat,
+  lng: p.lng
+}));
   }
 
   const data = {
@@ -713,14 +705,11 @@ async function exportDraftByMail() {
     now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
     '_' + ville.toUpperCase().replace(/\s+/g, '_');
 
-  const photosToExport = [];
-  for (const p of photos) {
-    photosToExport.push({
-      base64: p.base64 || (p.file ? await fileToBase64(p.file) : null),
-      timestamp: p.timestamp,
-      lat: p.lat,
-      lng: p.lng
-    });
+  const photosToExport = photos.map(p => ({
+  timestamp: p.timestamp,
+  lat: p.lat,
+  lng: p.lng
+}));
   }
 
   const data = {
