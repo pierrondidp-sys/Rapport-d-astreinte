@@ -30,8 +30,38 @@ function reverse(ll) {
   )
     .then(r => r.json())
     .then(d => {
-      if (d.display_name)
-        document.getElementById('adresse').value = d.display_name;
+
+      if (!d.address) return;
+
+      const a = d.address;
+
+      // --- Adresse courte ---
+      const numero = a.house_number || '';
+      const voie = a.road || '';
+      const codePostal = a.postcode || '';
+      const villeDetectee = a.city || a.town || a.village || '';
+
+      let adresse = '';
+      if (numero || voie) {
+        adresse += `${numero} ${voie}`.trim();
+      }
+      if (codePostal || villeDetectee) {
+        adresse += `, ${codePostal} ${villeDetectee}`.trim();
+      }
+
+      document.getElementById('adresse').value = adresse;
+
+      // --- Mise à jour automatique du champ Ville ---
+      const selectVille = document.getElementById('ville');
+      const options = Array.from(selectVille.options);
+
+      const match = options.find(opt =>
+        opt.text.trim().toLowerCase() === villeDetectee.trim().toLowerCase()
+      );
+
+      if (match) {
+        selectVille.value = match.value;
+      }
     });
 }
 
