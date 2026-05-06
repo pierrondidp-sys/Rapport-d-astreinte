@@ -315,7 +315,14 @@ if (photos.length > 0) {
     // ✅ Image
     const imgY = y + 12;
     try {
-      pdf.addImage(ph.dataUrl, 'JPEG', margin + 3, imgY, imgW, imgH);
+      pdf.addImage(
+  ph.base64 || ph.dataUrl,
+  'JPEG',
+  margin + 3,
+  imgY,
+  imgW,
+  imgH
+);
     } catch (e) {}
 
     // ✅ Zone métadonnées
@@ -368,11 +375,11 @@ async function saveDraft() {
   const photosToSave = [];
   for (const p of photos) {
     photosToSave.push({
-      base64: p.file ? await fileToBase64(p.file) : p.base64,
-      timestamp: p.timestamp,
-      lat: p.lat,
-      lng: p.lng
-    });
+  base64: p.base64 || (p.file ? await fileToBase64(p.file) : null),
+  timestamp: p.timestamp,
+  lat: p.lat,
+  lng: p.lng
+});
   }
 
   const draft = {
