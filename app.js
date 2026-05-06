@@ -704,19 +704,15 @@ function buildAgentEmail(agent) {
 }
 
 async function exportDraftByMail() {
-
   // ─────────────────────────────────────────────────────────
-  // 1) CONSTRUCTION DES DONNÉES À EXPORTER (DIRECT, PAS DE STORAGE)
+  // 1) CONSTRUCTION DES DONNÉES À EXPORTER
   // ─────────────────────────────────────────────────────────
-
   const now = new Date();
   const ville = v('ville') || 'VILLE';
-
   const id =
     now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
     '_' + ville.toUpperCase().replace(/\s+/g, '_');
 
-  // ✅ Conversion Base64 des photos nouvellement capturées (Object URL → Base64)
   const photosToExport = [];
   for (const p of photos) {
     photosToExport.push({
@@ -746,12 +742,12 @@ async function exportDraftByMail() {
   };
 
   // ─────────────────────────────────────────────────────────
-  // 2) EXPORT DU FICHIER (TOUJOURS EN PREMIER)
+  // 2) EXPORT DU FICHIER (SANS RÉVOCATION PRÉCOCE)
   // ─────────────────────────────────────────────────────────
-
-  const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: 'application/json'
-  });
+  const blob = new Blob(
+    [JSON.stringify(data, null, 2)],
+    { type: 'application/json' }
+  );
 
   const url = URL.createObjectURL(blob);
   const fileName = 'astreinte_' + id + '.json';
@@ -762,42 +758,34 @@ async function exportDraftByMail() {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  
-setTimeout(() => {
-  URL.revokeObjectURL(url);
-}, 2000); 
 
-  // // ─────────────────────────────────────────────────────────
-// 3) OUVERTURE DU MAIL (APRÈS L’EXPORT)
-// ─────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────
+  // 3) OUVERTURE DU MAIL APRÈS DÉLAI (SÉCURITÉ MOBILE)
+  // ─────────────────────────────────────────────────────────
+  setTimeout(() => {
+    const agent = v('agentAstreinte');
+    const to = buildAgentEmail(agent);
 
-const agent = v('agentAstreinte');
-const to = buildAgentEmail(agent);
+    if (!to) {
+      alert("Impossible de déterminer l'adresse mail de l’agent.");
+      return;
+    }
 
-if (!to) {
-  alert("Impossible de déterminer l'adresse mail de l’agent.");
-  return;
+    const subject = `Sauvegarde intervention – ${ville}`;
+    const body =
+      `Bonjour,\n\n` +
+      `Veuillez trouver en pièce jointe la sauvegarde ` +
+      `d’un rapport d’intervention concernant la ville de ${ville}.\n\n` +
+      `Cordialement.`;
+
+    const mailto =
+      `mailto:${encodeURIComponent(to)}` +
+      `?subject=${encodeURIComponent(subject)}` +
+      `&body=${encodeURIComponent(body)}`;
+
+    window.location.href = mailto;
+  }, 800);
 }
-
-const subject = `Sauvegarde intervention – ${ville}`;
-
-const body =
-  `Bonjour,\n\n` +
-  `Je vous prie de bien vouloir trouver en pièce jointe ` +
-  `la sauvegarde d’un rapport d’intervention concernant ` +
-  `la ville de ${ville}.\n\n` +
-  `Cordialement.`;
-
-const mailto =
-  `mailto:${encodeURIComponent(to)}` +
-  `?subject=${encodeURIComponent(subject)}` +
-  `&body=${encodeURIComponent(body)}`;
-
-setTimeout(() => {
-  window.open(mailto, '_self');
-}, 300);
-
-};
 
 // ── Dictée vocale ─────────────────────────────────────────────────────────────
 
