@@ -736,3 +736,25 @@ function exportDraftByMail() {
     window.open(mailto, '_self');
   }, 300);
 }
+
+// ─────────────────────────────────────────────────────────────
+// Désactivation intelligente du bouton Dictée sur mobile Android
+// (Edge / Chrome Android : Web Speech non fiable)
+// ─────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+
+  const isAndroid = /Android/i.test(navigator.userAgent);
+
+  // Bouton "Dicter" (celui qui appelle startDictation)
+  const micButton = document.querySelector(
+    'button[onclick^="startDictation"]'
+  );
+
+  if (isAndroid && micButton) {
+    micButton.disabled = true;
+    micButton.textContent = "🎤 Dictée via clavier";
+    micButton.title =
+      "Utilisez le micro du clavier Android pour dicter le texte";
+  }
+});
