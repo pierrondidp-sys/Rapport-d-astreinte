@@ -15,12 +15,22 @@ marker.on('dragend', function () {
 });
 
 function geoLocate() {
-  navigator.geolocation.getCurrentPosition(function (p) {
-    const ll = [p.coords.latitude, p.coords.longitude];
-    map.setView(ll, 18);
-    marker.setLatLng(ll);
-    reverse({ lat: ll[0], lng: ll[1] });
-  });
+  navigator.geolocation.getCurrentPosition(
+    function (p) {
+      const ll = [p.coords.latitude, p.coords.longitude];
+      map.setView(ll, 18);
+      marker.setLatLng(ll);
+      reverse({ lat: ll[0], lng: ll[1] });
+    },
+    function (err) {
+      const messages = {
+        1: "Accès à la localisation refusé. Veuillez autoriser la géolocalisation dans les paramètres de votre navigateur.",
+        2: "Position introuvable. Vérifiez que le GPS est activé.",
+        3: "La demande de localisation a expiré. Réessayez."
+      };
+      alert(messages[err.code] || "Erreur de géolocalisation.");
+    }
+  );
 }
 
 function reverse(ll) {
@@ -46,7 +56,8 @@ function reverse(ll) {
         adresse += `${numero} ${voie}`.trim();
       }
       if (codePostal || villeDetectee) {
-        adresse += `, ${codePostal} ${villeDetectee}`.trim();
+        const localite = [codePostal, villeDetectee].filter(Boolean).join(' ');
+        adresse = adresse ? `${adresse}, ${localite}` : localite;
       }
 
       document.getElementById('adresse').value = adresse;
@@ -402,21 +413,30 @@ async function saveDraft() {
   };
 
   // Sauvegarde du brouillon
-  localStorage.setItem('astreinteDraft_' + id, JSON.stringify(draft));
+  try {
+    localStorage.setItem('astreinteDraft_' + id, JSON.stringify(draft));
 
-  // Index des sauvegardes
-  const index =
-    JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
+    // Index des sauvegardes
+    const index =
+      JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
 
-  if (!index.includes(id)) {
-    index.push(id);
-    localStorage.setItem(
-      'astreinteDraftsIndex',
-      JSON.stringify(index)
-    );
+    if (!index.includes(id)) {
+      index.push(id);
+      localStorage.setItem(
+        'astreinteDraftsIndex',
+        JSON.stringify(index)
+      );
+    }
+
+    alert('Brouillon sauvegardé ✅\n\nID : ' + id);
+  } catch (e) {
+    if (e.name === 'QuotaExceededError') {
+      alert('❌ Espace de stockage insuffisant.\n\nSupprimez des anciennes sauvegardes ou exportez le rapport en JSON.');
+    } else {
+      alert('❌ Erreur lors de la sauvegarde : ' + e.message);
+    }
+    console.error('localStorage.setItem échec :', e);
   }
-
-  alert('Brouillon sauvegardé ✅\n\nID : ' + id);
 }
 
 function loadDraft() {
@@ -613,7 +633,7 @@ function exportDraft() {
   URL.revokeObjectURL(url);
 }
 
-function exportDirect() {
+async function exportDirect() {
 
   if (photos.length === 0 && !confirm(
     "Aucune photo détectée.\n\nVoulez-vous quand même exporter le rapport ?"
@@ -627,6 +647,17 @@ function exportDirect() {
   const id =
     now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
     '_' + ville.toUpperCase().replace(/\s+/g, '_');
+
+  // ✅ Conversion Base64 des photos nouvellement capturées (Object URL → Base64)
+  const photosToExport = [];
+  for (const p of photos) {
+    photosToExport.push({
+      base64: p.base64 || (p.file ? await fileToBase64(p.file) : null),
+      timestamp: p.timestamp,
+      lat: p.lat,
+      lng: p.lng
+    });
+  }
 
   const data = {
     id,
@@ -643,12 +674,7 @@ function exportDirect() {
       nature: v('nature'),
       autres: v('autres')
     },
-    photos: photos.map(p => ({
-      base64: p.base64 || p.dataUrl,
-      timestamp: p.timestamp,
-      lat: p.lat,
-      lng: p.lng
-    }))
+    photos: photosToExport
   };
 
   const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -677,7 +703,7 @@ function buildAgentEmail(agent) {
     + '@seineouest.fr';
 }
 
-function exportDraftByMail() {
+async function exportDraftByMail() {
 
   // ─────────────────────────────────────────────────────────
   // 1) CONSTRUCTION DES DONNÉES À EXPORTER (DIRECT, PAS DE STORAGE)
@@ -689,6 +715,17 @@ function exportDraftByMail() {
   const id =
     now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
     '_' + ville.toUpperCase().replace(/\s+/g, '_');
+
+  // ✅ Conversion Base64 des photos nouvellement capturées (Object URL → Base64)
+  const photosToExport = [];
+  for (const p of photos) {
+    photosToExport.push({
+      base64: p.base64 || (p.file ? await fileToBase64(p.file) : null),
+      timestamp: p.timestamp,
+      lat: p.lat,
+      lng: p.lng
+    });
+  }
 
   const data = {
     id,
@@ -705,12 +742,7 @@ function exportDraftByMail() {
       nature: v('nature'),
       autres: v('autres')
     },
-    photos: photos.map(p => ({
-      base64: p.base64 || p.dataUrl,
-      timestamp: p.timestamp,
-      lat: p.lat,
-      lng: p.lng
-    }))
+    photos: photosToExport
   };
 
   // ─────────────────────────────────────────────────────────
@@ -764,7 +796,62 @@ setTimeout(() => {
 
 };
 
-// Désactivation intelligente du bouton Dictée sur mobile Android
+// ── Dictée vocale ─────────────────────────────────────────────────────────────
+
+function startDictation(fieldId) {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    alert(
+      "La dictée vocale n'est pas supportée sur ce navigateur.\n" +
+      "Utilisez Chrome ou Safari, ou dictez via le clavier de votre appareil."
+    );
+    return;
+  }
+
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+
+  const recog = new SpeechRecognition();
+  recog.lang = 'fr-FR';
+  recog.interimResults = false;
+  recog.maxAlternatives = 1;
+
+  const btn = document.querySelector('button[onclick^="startDictation"]');
+  if (btn) {
+    btn.textContent = '🔴 Écoute…';
+    btn.disabled = true;
+  }
+
+  recog.onresult = function (e) {
+    const transcript = e.results[0][0].transcript;
+    field.value = field.value
+      ? field.value.trimEnd() + ' ' + transcript
+      : transcript;
+  };
+
+  recog.onerror = function (e) {
+    const messages = {
+      'not-allowed':  "Accès au microphone refusé. Autorisez-le dans les paramètres du navigateur.",
+      'no-speech':    "Aucune parole détectée. Réessayez.",
+      'network':      "Erreur réseau lors de la dictée. Vérifiez votre connexion.",
+      'aborted':      "Dictée interrompue."
+    };
+    alert(messages[e.error] || 'Erreur dictée : ' + e.error);
+  };
+
+  recog.onend = function () {
+    if (btn) {
+      btn.textContent = '🎤 Dicter';
+      btn.disabled = false;
+    }
+  };
+
+  recog.start();
+}
+
+
 // (Edge / Chrome Android : Web Speech non fiable)
 // 
 
