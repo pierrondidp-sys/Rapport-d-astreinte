@@ -757,11 +757,9 @@ setTimeout(() => {
 
 };
 
-//
-─────────────────────────────────────────────────────────────
 // Désactivation intelligente du bouton Dictée sur mobile Android
 // (Edge / Chrome Android : Web Speech non fiable)
-// ─────────────────────────────────────────────────────────────
+// 
 
 document.addEventListener('DOMContentLoaded', () => {
 
