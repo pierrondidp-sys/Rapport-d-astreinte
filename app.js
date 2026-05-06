@@ -454,6 +454,62 @@ function loadDraft() {
   alert('Brouillon chargé ✅');
 }
 
+function importDraft() {
+  document.getElementById('importFile').click();
+}
+
+document.getElementById('importFile').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const draft = JSON.parse(reader.result);
+      const id = draft.id || ('import_' + Date.now());
+
+      // 🔹 Sauvegarde locale
+      localStorage.setItem('astreinteDraft_' + id, JSON.stringify(draft));
+
+      const index =
+        JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
+      if (!index.includes(id)) {
+        index.push(id);
+        localStorage.setItem(
+          'astreinteDraftsIndex',
+          JSON.stringify(index)
+        );
+      }
+
+      // 🔹 CHARGEMENT IMMÉDIAT DANS LE FORMULAIRE
+      for (const key in draft.form) {
+        const el = document.getElementById(key);
+        if (el) el.value = draft.form[key];
+      }
+
+      photos = (draft.photos || []).map(p => ({
+        base64: p.base64,
+        dataUrl: p.base64,
+        timestamp: new Date(p.timestamp),
+        lat: p.lat,
+        lng: p.lng,
+        file: null
+      }));
+
+      renderPreview();
+
+      alert('Sauvegarde importée et ouverte ✅');
+
+    } catch (err) {
+      alert('Fichier de sauvegarde invalide.');
+      console.error(err);
+    }
+  };
+
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
 function deleteDraft() {
 
   const index =
@@ -550,134 +606,133 @@ function exportDraft() {
   URL.revokeObjectURL(url);
 }
 
-function exportDraftByMail() {
+function exportDirect() {
 
-  const index =
-    JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
-
-  if (index.length === 0) {
-    alert('Aucune sauvegarde à exporter.');
+  if (photos.length === 0 && !confirm(
+    "Aucune photo détectée.\n\nVoulez-vous quand même exporter le rapport ?"
+  )) {
     return;
   }
 
-  // Choix de la sauvegarde
-  const choice = prompt(
-    'Exporter quelle sauvegarde ?\n\n' +
-    index.map((id, i) => `${i + 1} – ${id}`).join('\n')
-  );
+  const now = new Date();
+  const ville = v('ville') || 'VILLE';
 
-  const i = parseInt(choice, 10) - 1;
-  if (isNaN(i) || !index[i]) return;
+  const id =
+    now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
+    '_' + ville.toUpperCase().replace(/\s+/g, '_');
 
-  const id = index[i];
-  const raw = localStorage.getItem('astreinteDraft_' + id);
-  const draft = JSON.parse(raw);
+  const data = {
+    id,
+    exportedAt: now.toISOString(),
+    form: {
+      ville: v('ville'),
+      adresse: v('adresse'),
+      agentAstreinte: v('agentAstreinte'),
+      date: v('date'),
+      heureDebut: v('heureDebut'),
+      origine: v('origine'),
+      heureFin: v('heureFin'),
+      objet: v('objet'),
+      nature: v('nature'),
+      autres: v('autres')
+    },
+    photos: photos.map(p => ({
+      base64: p.base64 || p.dataUrl,
+      timestamp: p.timestamp,
+      lat: p.lat,
+      lng: p.lng
+    }))
+  };
 
-  // ── Export fichier JSON ──────────────────────────────
-  const blob = new Blob([raw], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: 'application/json'
+  });
+
   const url = URL.createObjectURL(blob);
-
   const a = document.createElement('a');
   a.href = url;
   a.download = 'astreinte_' + id + '.json';
   a.click();
+  URL.revokeObjectURL(url);
+}
 
+function exportDraftByMail() {
+
+  // ─────────────────────────────────────────────────────────
+  // 1) CONSTRUCTION DES DONNÉES À EXPORTER (DIRECT, PAS DE STORAGE)
+  // ─────────────────────────────────────────────────────────
+
+  const now = new Date();
+  const ville = v('ville') || 'VILLE';
+
+  const id =
+    now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
+    '_' + ville.toUpperCase().replace(/\s+/g, '_');
+
+  const data = {
+    id,
+    exportedAt: now.toISOString(),
+    form: {
+      ville: v('ville'),
+      adresse: v('adresse'),
+      agentAstreinte: v('agentAstreinte'),
+      date: v('date'),
+      heureDebut: v('heureDebut'),
+      origine: v('origine'),
+      heureFin: v('heureFin'),
+      objet: v('objet'),
+      nature: v('nature'),
+      autres: v('autres')
+    },
+    photos: photos.map(p => ({
+      base64: p.base64 || p.dataUrl,
+      timestamp: p.timestamp,
+      lat: p.lat,
+      lng: p.lng
+    }))
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // 2) EXPORT DU FICHIER (TOUJOURS EN PREMIER)
+  // ─────────────────────────────────────────────────────────
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: 'application/json'
+  });
+
+  const url = URL.createObjectURL(blob);
+  const fileName = 'astreinte_' + id + '.json';
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  // ── Préparation du mail Outlook ──────────────────────
-  const ville = draft.ville || draft.form?.ville || '';
+  // ─────────────────────────────────────────────────────────
+  // 3) OUVERTURE DU MAIL (APRÈS L’EXPORT)
+  // ─────────────────────────────────────────────────────────
+
   const to = 'astreintes@gpso.fr';
 
   const subject = `Sauvegarde intervention – ${ville}`;
 
   const body =
-`Bonjour,
-
-Je vous prie de bien vouloir trouver ci-joint la sauvegarde
-d’un rapport d’intervention concernant la ville de ${ville}.
-
-Cordialement.`;
+    `Bonjour,\n\n` +
+    `Je vous prie de bien vouloir trouver en pièce jointe ` +
+    `la sauvegarde d’un rapport d’intervention concernant ` +
+    `la ville de ${ville}.\n\n` +
+    `Cordialement.`;
 
   const mailto =
     `mailto:${encodeURIComponent(to)}` +
     `?subject=${encodeURIComponent(subject)}` +
     `&body=${encodeURIComponent(body)}`;
 
-  window.open(mailto, '_self');
-}
-
-function importDraft() {
-  document.getElementById('importFile').click();
-}
-
-document.getElementById('importFile').addEventListener('change', function (e) {
-
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = () => {
-
-    try {
-      const draft = JSON.parse(reader.result);
-      const id = draft.id || ('import_' + Date.now());
-
-      // Enregistrement
-      localStorage.setItem(
-        'astreinteDraft_' + id,
-        JSON.stringify(draft)
-      );
-
-      const index =
-        JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
-
-      if (!index.includes(id)) {
-        index.push(id);
-        localStorage.setItem(
-          'astreinteDraftsIndex',
-          JSON.stringify(index)
-        );
-      }
-
-      alert('Sauvegarde importée avec succès ✅');
-
-    } catch (err) {
-      alert('Fichier invalide');
-    }
-  };
-
-  reader.readAsText(file);
-  e.target.value = '';
-});
-
-function startDictation(fieldId) {
-
-  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-    alert("La reconnaissance vocale n'est pas disponible sur ce navigateur.");
-    return;
-  }
-
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
-
-  const recognition = new SpeechRecognition();
-
-  recognition.lang = 'fr-FR';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-
-  recognition.onresult = function (event) {
-    const transcript = event.results[0][0].transcript;
-    const field = document.getElementById(fieldId);
-
-    field.value = field.value
-      ? field.value + ' ' + transcript
-      : transcript;
-  };
-
-  recognition.onerror = function (event) {
-    alert("Erreur de reconnaissance vocale : " + event.error);
-  };
-
-  recognition.start();
+  // Ouverture volontairement après le téléchargement
+  setTimeout(() => {
+    window.open(mailto, '_self');
+  }, 300);
 }
