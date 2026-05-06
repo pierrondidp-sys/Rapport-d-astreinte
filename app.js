@@ -755,7 +755,7 @@ setTimeout(() => {
   window.open(mailto, '_self');
 }, 300);
 
-}
+};
 ─────────────────────────────────────────────────────────────
 // Désactivation intelligente du bouton Dictée sur mobile Android
 // (Edge / Chrome Android : Web Speech non fiable)
