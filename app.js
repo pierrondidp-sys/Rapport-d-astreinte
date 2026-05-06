@@ -16,11 +16,22 @@ function fileToBase64(file) {
   });
 }
 
+function formatDate(d) {
+  if (!d) return 'Date inconnue';
+  return new Intl.DateTimeFormat('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).format(d instanceof Date ? d : new Date(d));
+}
+
 let photos = [];
 
-
 // =========================================================
-// CARTE LEAFLET (VERSION ORIGINALE STABLE)
+// CARTE LEAFLET (VERSION ORIGINALE CONSERVÉE)
 // =========================================================
 
 const map = L.map('map').setView([48.82, 2.27], 13);
@@ -47,7 +58,7 @@ function geoLocate() {
 function reverse(ll) {
   fetch(
     'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' +
-    ll.lat + '&lon=' + ll.lng
+      ll.lat + '&lon=' + ll.lng
   )
     .then(r => r.json())
     .then(d => {
@@ -66,16 +77,16 @@ function reverse(ll) {
       document.getElementById('adresse').value = adresse;
 
       const selectVille = document.getElementById('ville');
-      const opt = Array.from(selectVille.options)
-        .find(o => o.text.toLowerCase() === villeDetectee.toLowerCase());
+      const match = Array.from(selectVille.options).find(opt =>
+        opt.text.trim().toLowerCase() === villeDetectee.trim().toLowerCase()
+      );
 
-      if (opt) selectVille.value = opt.value;
+      if (match) selectVille.value = match.value;
     });
 }
 
-
 // =========================================================
-// PHOTOS
+// PHOTOS (BASE64 = SOURCE PERSISTANTE UNIQUE)
 // =========================================================
 
 async function handleFile(file) {
@@ -88,7 +99,7 @@ async function handleFile(file) {
   try {
     const exif = await exifr.parse(file, { gps: true });
     if (exif?.DateTimeOriginal) timestamp = exif.DateTimeOriginal;
-    if (exif?.latitude) {
+    if (exif?.latitude != null) {
       lat = exif.latitude;
       lng = exif.longitude;
     }
@@ -97,8 +108,8 @@ async function handleFile(file) {
   const base64 = await fileToBase64(file);
 
   photos.push({
-    dataUrl: blobUrl,    // aperçu immédiat
-    base64: base64,      // stockage durable
+    dataUrl: blobUrl,   // aperçu immédiat
+    base64: base64,     // stockage durable
     timestamp,
     lat,
     lng
@@ -108,16 +119,28 @@ async function handleFile(file) {
 }
 
 async function handleFiles(files) {
-  for (const f of files) {
-    await handleFile(f);
+  for (let i = 0; i < files.length; i++) {
+    await handleFile(files[i]);
   }
 }
 
-document.getElementById('photoCamera')
-  .addEventListener('change', e => handleFiles(e.target.files));
+document.getElementById('photoCamera').addEventListener('change', e => {
+  handleFiles(e.target.files);
+  e.target.value = '';
+});
 
-document.getElementById('photoGallery')
-  .addEventListener('change', e => handleFiles(e.target.files));
+document.getElementById('photoGallery').addEventListener('change', e => {
+  handleFiles(e.target.files);
+  e.target.value = '';
+});
+
+function deletePhoto(index) {
+  if (photos[index]?.dataUrl?.startsWith('blob:')) {
+    URL.revokeObjectURL(photos[index].dataUrl);
+  }
+  photos.splice(index, 1);
+  renderPreview();
+}
 
 function renderPreview() {
   const preview = document.getElementById('preview');
@@ -134,81 +157,98 @@ function renderPreview() {
     meta.className = 'photo-meta';
     meta.innerHTML =
       `🕒 ${formatDate(p.timestamp)}<br>` +
-      (p.lat ? `📍 ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}` : '📍 GPS non disponible');
+      (p.lat != null
+        ? `📍 ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`
+        : '📍 GPS non disponible');
 
-    const del = document.createElement('button');
-    del.textContent = '✕ Supprimer';
-    del.onclick = () => {
-      if (p.dataUrl?.startsWith('blob:')) URL.revokeObjectURL(p.dataUrl);
-      photos.splice(i, 1);
-      renderPreview();
-    };
+    const btnDel = document.createElement('button');
+    btnDel.type = 'button';
+    btnDel.className = 'btn-delete';
+    btnDel.textContent = '✕ Supprimer';
+    btnDel.onclick = () => deletePhoto(i);
 
-    card.append(img, meta, del);
+    card.appendChild(img);
+    card.appendChild(meta);
+    card.appendChild(btnDel);
     preview.appendChild(card);
   });
 }
 
-function formatDate(d) {
-  return new Date(d).toLocaleString('fr-FR');
-}
-
-
 // =========================================================
-// PDF (IMAGES GARANTIES)
+// PDF (IMAGES GARANTIES APRÈS IMPORT / SAUVEGARDE)
 // =========================================================
 
 function exportPDF() {
-  const pdf = new jspdf.jsPDF();
-  let y = 15;
+  const pdf = new jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 15;
 
+  let y = margin;
+
+  pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(12);
-  pdf.text('INTERVENTION SOUS ASTREINTES', 105, y, { align: 'center' });
+  pdf.text('INTERVENTION SOUS ASTREINTES', pageW / 2, y, { align: 'center' });
   y += 10;
 
   const rows = [
     ['VILLE', v('ville')],
     ['ADRESSE', v('adresse')],
-    ["Agent d’astreinte", v('agentAstreinte')],
+    ["Agent d'astreinte", v('agentAstreinte')],
     ['DATE', v('date')],
     ['OBJET', v('objet')],
     ['NATURE', v('nature')]
   ];
 
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(10);
+
   rows.forEach(([l, val]) => {
-    pdf.text(l + ' :', 15, y);
-    pdf.text(val || '', 60, y);
+    pdf.text(l + ' :', margin, y);
+    pdf.text(val || '', margin + 45, y);
     y += 7;
   });
 
   if (photos.length) {
     pdf.addPage();
-    y = 15;
-    pdf.text('PHOTOGRAPHIES', 15, y);
+    y = margin;
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('PHOTOGRAPHIES', margin, y);
     y += 10;
 
     photos.forEach(p => {
       try {
-        pdf.addImage(p.base64, 'JPEG', 15, y, 80, 60);
+        pdf.addImage(
+          p.base64 || p.dataUrl,
+          'JPEG',
+          margin,
+          y,
+          80,
+          60
+        );
         y += 65;
+        if (y > pageH - 60) {
+          pdf.addPage();
+          y = margin;
+        }
       } catch (_) {}
     });
   }
 
-  pdf.save('Intervention.pdf');
+  pdf.save('Intervention_sous_astreintes.pdf');
 }
 
-
 // =========================================================
-// SAUVEGARDE / IMPORT
+// SAUVEGARDE / CHARGEMENT / IMPORT
 // =========================================================
 
-function saveDraft() {
+async function saveDraft() {
   const now = new Date();
   const id = now.getTime();
 
   const data = {
     id,
+    savedAt: now.toISOString(),
     form: {
       ville: v('ville'),
       adresse: v('adresse'),
@@ -226,7 +266,7 @@ function saveDraft() {
   };
 
   localStorage.setItem('astreinte_' + id, JSON.stringify(data));
-  alert('Sauvegarde OK');
+  alert('Brouillon sauvegardé ✅');
 }
 
 document.getElementById('importFile').addEventListener('change', e => {
@@ -238,33 +278,38 @@ document.getElementById('importFile').addEventListener('change', e => {
     const d = JSON.parse(reader.result);
 
     for (const k in d.form) {
-      document.getElementById(k).value = d.form[k];
+      const el = document.getElementById(k);
+      if (el) el.value = d.form[k];
     }
 
     photos = (d.photos || []).map(p => ({
       base64: p.base64,
       dataUrl: p.base64,
-      timestamp: p.timestamp,
+      timestamp: new Date(p.timestamp),
       lat: p.lat,
       lng: p.lng
     }));
 
     renderPreview();
+    alert('Sauvegarde importée et ouverte ✅');
   };
   reader.readAsText(file);
+  e.target.value = '';
 });
-
 
 // =========================================================
 // MAIL AGENT
 // =========================================================
 
 function buildAgentEmail(agent) {
+  if (!agent) return '';
   return agent
+    .trim()
     .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, '.')
-    + '@seineouest.fr';
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '.') +
+    '@seineouest.fr';
 }
 
 function exportDraftByMail() {
@@ -274,3 +319,60 @@ function exportDraftByMail() {
     window.open(`mailto:${to}`, '_self');
   }, 300);
 }
+
+// =========================================================
+// EXPORT DIRECT (MOBILE)
+// =========================================================
+
+function exportDirect() {
+  const now = new Date();
+  const id = now.getTime();
+
+  const data = {
+    id,
+    exportedAt: now.toISOString(),
+    form: {
+      ville: v('ville'),
+      adresse: v('adresse'),
+      agentAstreinte: v('agentAstreinte'),
+      date: v('date'),
+      objet: v('objet'),
+      nature: v('nature')
+    },
+    photos: photos.map(p => ({
+      base64: p.base64,
+      timestamp: p.timestamp,
+      lat: p.lat,
+      lng: p.lng
+    }))
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: 'application/json'
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'astreinte_' + id + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// =========================================================
+// DÉSACTIVATION DICTÉE WEB SUR ANDROID
+// =========================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const micButton = document.querySelector(
+    "button[onclick^='startDictation']"
+  );
+
+  if (isAndroid && micButton) {
+    micButton.disabled = true;
+    micButton.textContent = '🎤 Dictée via clavier';
+    micButton.title =
+      'Utilisez le micro du clavier Android pour dicter le texte';
+  }
+});
