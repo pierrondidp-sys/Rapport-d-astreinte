@@ -619,3 +619,35 @@ document.getElementById('importFile').addEventListener('change', function (e) {
   reader.readAsText(file);
   e.target.value = '';
 });
+
+function startDictation(fieldId) {
+
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    alert("La reconnaissance vocale n'est pas disponible sur ce navigateur.");
+    return;
+  }
+
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  const recognition = new SpeechRecognition();
+
+  recognition.lang = 'fr-FR';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onresult = function (event) {
+    const transcript = event.results[0][0].transcript;
+    const field = document.getElementById(fieldId);
+
+    field.value = field.value
+      ? field.value + ' ' + transcript
+      : transcript;
+  };
+
+  recognition.onerror = function (event) {
+    alert("Erreur de reconnaissance vocale : " + event.error);
+  };
+
+  recognition.start();
+}
