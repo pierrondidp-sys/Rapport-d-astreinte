@@ -762,7 +762,10 @@ async function exportDraftByMail() {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+  
+setTimeout(() => {
   URL.revokeObjectURL(url);
+}, 2000); 
 
   // // ─────────────────────────────────────────────────────────
 // 3) OUVERTURE DU MAIL (APRÈS L’EXPORT)
