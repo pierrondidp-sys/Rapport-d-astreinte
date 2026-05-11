@@ -160,6 +160,32 @@ function reverse(ll) {
 
 // ── Photos ─────────────────────────────────────────────────────────────[...]
 
+// ✅ NOUVELLE FONCTION pour sauvegarder dans la galerie Android/Galaxy
+async function savePhotoToGallery(file) {
+  try {
+    // Créer un blob à partir du fichier
+    const blob = new Blob([file], { type: 'image/jpeg' });
+    
+    // Créer une URL de l'objet
+    const imageUrl = URL.createObjectURL(blob);
+    
+    // Créer un élément 'a' pour télécharger (compatible Android)
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = `photo_astreinte_${Date.now()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Libérer la mémoire
+    URL.revokeObjectURL(imageUrl);
+    
+    console.log('✅ Photo enregistrée dans les téléchargements (visible dans la galerie)');
+  } catch (e) {
+    console.error('Erreur lors de la sauvegarde dans la galerie:', e);
+  }
+}
+
 // ✅ VERSION CORRIGÉE (compatible caméra mobile) + COMPRESSION
 async function handleFile(file) {
   return new Promise(async function (resolve) {
@@ -199,6 +225,10 @@ async function handleFile(file) {
     });
 
     renderPreview();
+
+    // ✅ NOUVEAU : Sauvegarder la photo dans la galerie Android
+    await savePhotoToGallery(file);
+
     resolve();
   });
 }
