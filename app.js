@@ -144,17 +144,8 @@ function reverse(ll) {
 
       document.getElementById('adresse').value = adresse;
 
-      // --- Mise à jour automatique du champ Ville ---
-      const selectVille = document.getElementById('ville');
-      const options = Array.from(selectVille.options);
-
-      const match = options.find(opt =>
-        opt.text.trim().toLowerCase() === villeDetectee.trim().toLowerCase()
-      );
-
-      if (match) {
-        selectVille.value = match.value;
-      }
+      // --- Mise à jour automatique du champ Ville via syncCityField ---
+      syncCityField();
     });
 }
 
@@ -369,21 +360,40 @@ function getDetectedCity() {
   return '';
 }
 
-// ✅ NOUVELLE FONCTION pour synchroniser le champ Ville avec la ville détectée
+// ✅ FONCTION synchronisant le champ Ville avec la ville détectée dans l'adresse
+// Priorité : ville extraite de l'adresse → si absente de la liste, option temporaire ajoutée
 function syncCityField() {
   const detectedCity = getDetectedCity();
   const selectVille = document.getElementById('ville');
-  
-  if (detectedCity) {
-    // Chercher l'option correspondante
-    const options = Array.from(selectVille.options);
-    const match = options.find(opt =>
-      opt.text.trim().toLowerCase() === detectedCity.trim().toLowerCase()
-    );
-    
-    if (match) {
-      selectVille.value = match.value;
+
+  if (!detectedCity) return;
+
+  // Supprimer l'éventuelle option temporaire précédente
+  const existing = selectVille.querySelector('option[data-auto]');
+  if (existing) existing.remove();
+
+  const options = Array.from(selectVille.options);
+  const match = options.find(opt =>
+    opt.text.trim().toLowerCase() === detectedCity.trim().toLowerCase()
+  );
+
+  if (match) {
+    // Ville trouvée dans la liste → sélection directe
+    selectVille.value = match.value;
+  } else {
+    // Ville absente de la liste → ajout d'une option temporaire en tête
+    const tempOption = document.createElement('option');
+    tempOption.value = detectedCity;
+    tempOption.textContent = detectedCity + ' (détectée)';
+    tempOption.setAttribute('data-auto', '1');
+    // Insérer en deuxième position (après l'éventuel placeholder vide)
+    const firstReal = selectVille.options[0];
+    if (firstReal) {
+      selectVille.insertBefore(tempOption, firstReal.nextSibling);
+    } else {
+      selectVille.appendChild(tempOption);
     }
+    selectVille.value = detectedCity;
   }
 }
 
