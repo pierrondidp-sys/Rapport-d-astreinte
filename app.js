@@ -1,15 +1,15 @@
-// ───────────────────────────────────────────────────────────────────[...]
+// ──────────────────────────────────────────────────────────────────[...]
 // AGENT D'ASTREINTE — modifier uniquement cette ligne
-// ───────────────────────────────────────────────────────────────────[...]
+// ──────────────────────────────────────────────────────────────────[...]
 function v(id) { return document.getElementById(id).value; }
 
 let photos = [];
 const DB_NAME = 'AstreintDB';
 const STORE_NAME = 'drafts';
 
-// ─────────────────────────────────────────────────────────────────�[...]
+// ──────────────────────────────────────────────────────────────────[...]
 // ✅ INDEXEDDB - INITIALISATION
-// ─────────────────────────────────────────────────────────────────�[...]
+// ──────────────────────────────────────────────────────────────────[...]
 
 function initIndexedDB() {
   return new Promise((resolve, reject) => {
@@ -41,9 +41,9 @@ function getDB() {
   });
 }
 
-// ─────────────────────────────────────────────────────────────────�[...]
+// ──────────────────────────────────────────────────────────────────[...]
 // ✅ COMPRESSION D'IMAGES
-// ─────────────────────────────────────────────────────────────────�[...]
+// ──────────────────────────────────────────────────────────────────[...]
 
 async function compressImage(file) {
   return new Promise((resolve) => {
@@ -367,6 +367,24 @@ function getDetectedCity() {
     return cityMatch[1] || lastPart;
   }
   return '';
+}
+
+// ✅ NOUVELLE FONCTION pour synchroniser le champ Ville avec la ville détectée
+function syncCityField() {
+  const detectedCity = getDetectedCity();
+  const selectVille = document.getElementById('ville');
+  
+  if (detectedCity) {
+    // Chercher l'option correspondante
+    const options = Array.from(selectVille.options);
+    const match = options.find(opt =>
+      opt.text.trim().toLowerCase() === detectedCity.trim().toLowerCase()
+    );
+    
+    if (match) {
+      selectVille.value = match.value;
+    }
+  }
 }
 
 function exportPDF() {
@@ -1097,4 +1115,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initIndexedDB().catch(e => {
     console.error('Failed to initialize IndexedDB:', e);
   });
+
+  // ✅ Ajouter un listener sur le champ adresse pour synchroniser la ville
+  const adresseField = document.getElementById('adresse');
+  if (adresseField) {
+    adresseField.addEventListener('change', syncCityField);
+  }
 });
