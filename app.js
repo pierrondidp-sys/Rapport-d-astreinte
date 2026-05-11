@@ -281,7 +281,7 @@ function extractStreet() {
 
 // ✅ NOUVELLE FONCTION pour générer le nom avec la nouvelle règle
 function generateFileName(fileExtension = 'pdf') {
-  const ville = v('ville') || 'VILLE';
+  const ville = getVille() || 'VILLE';
   const rue = extractStreet();
   const objet = (v('objet') || 'OBJET').replace(/\s+/g, '_').toUpperCase();
   const dateInput = v('date'); // Format YYYY-MM-DD
@@ -360,13 +360,19 @@ function getDetectedCity() {
   return '';
 }
 
-// ✅ FONCTION synchronisant le champ Ville avec la ville détectée dans l'adresse
-// Priorité : ville extraite de l'adresse → si absente de la liste, option temporaire ajoutée
-function syncCityField() {
-  const detectedCity = getDetectedCity();
+// ✅ Retourne le nom de ville propre (sans suffixe "(détectée)") depuis le select
+function getVille() {
   const selectVille = document.getElementById('ville');
+  if (!selectVille) return '';
+  const selected = selectVille.options[selectVille.selectedIndex];
+  if (!selected) return '';
+  return selected.value.trim();
+}
 
-  if (!detectedCity) return;
+// ✅ Injecte une ville dans le select : option existante ou option temporaire
+function setVilleInSelect(cityName) {
+  const selectVille = document.getElementById('ville');
+  if (!cityName) return;
 
   // Supprimer l'éventuelle option temporaire précédente
   const existing = selectVille.querySelector('option[data-auto]');
@@ -374,27 +380,33 @@ function syncCityField() {
 
   const options = Array.from(selectVille.options);
   const match = options.find(opt =>
-    opt.text.trim().toLowerCase() === detectedCity.trim().toLowerCase()
+    opt.value.trim().toLowerCase() === cityName.trim().toLowerCase() ||
+    opt.text.trim().toLowerCase() === cityName.trim().toLowerCase()
   );
 
   if (match) {
-    // Ville trouvée dans la liste → sélection directe
     selectVille.value = match.value;
   } else {
-    // Ville absente de la liste → ajout d'une option temporaire en tête
+    // Ville absente de la liste → option temporaire visible dans le menu
     const tempOption = document.createElement('option');
-    tempOption.value = detectedCity;
-    tempOption.textContent = detectedCity + ' (détectée)';
+    tempOption.value = cityName;
+    tempOption.textContent = cityName + ' (détectée)';
     tempOption.setAttribute('data-auto', '1');
-    // Insérer en deuxième position (après l'éventuel placeholder vide)
     const firstReal = selectVille.options[0];
     if (firstReal) {
       selectVille.insertBefore(tempOption, firstReal.nextSibling);
     } else {
       selectVille.appendChild(tempOption);
     }
-    selectVille.value = detectedCity;
+    selectVille.value = cityName;
   }
+}
+
+// ✅ Synchronise le champ Ville avec la ville extraite de l'adresse
+function syncCityField() {
+  const detectedCity = getDetectedCity();
+  if (!detectedCity) return;
+  setVilleInSelect(detectedCity);
 }
 
 function exportPDF() {
@@ -427,8 +439,8 @@ function exportPDF() {
   );
   y += 10;
 
-  // ✅ Récupérer la ville sélectionnée dans le select, sinon la ville détectée
-  let villeValue = v('ville');
+  // ✅ Récupérer la ville propre (sans "(détectée)")
+  let villeValue = getVille();
   if (!villeValue) {
     villeValue = getDetectedCity();
   }
@@ -610,7 +622,7 @@ async function saveDraftIndexedDB(draft) {
 
 async function saveDraft() {
 
-  const ville = v('ville') || 'VILLE';
+  const ville = getVille() || 'VILLE';
   const now = new Date();
   const id =
     now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
@@ -629,7 +641,7 @@ async function saveDraft() {
     savedAt: now.toISOString(),
     ville,
     form: {
-      ville: v('ville'),
+      ville: getVille(),
       adresse: v('adresse'),
       agentAstreinte: v('agentAstreinte'),
       date: v('date'),
@@ -719,8 +731,13 @@ async function loadDraft() {
 
     // Formulaire
     for (const k in draft.form) {
+      if (k === 'ville') continue; // géré séparément
       const el = document.getElementById(k);
       if (el) el.value = draft.form[k];
+    }
+    // Restaurer la ville (option existante ou temporaire si hors liste)
+    if (draft.form.ville) {
+      setVilleInSelect(draft.form.ville);
     }
 
     // Photos
@@ -763,8 +780,13 @@ document.getElementById('importFile').addEventListener('change', function (e) {
 
       // 🔹 CHARGEMENT IMMÉDIAT DANS LE FORMULAIRE
       for (const key in draft.form) {
+        if (key === 'ville') continue; // géré séparément
         const el = document.getElementById(key);
         if (el) el.value = draft.form[key];
+      }
+      // Restaurer la ville (option existante ou temporaire si hors liste)
+      if (draft.form.ville) {
+        setVilleInSelect(draft.form.ville);
       }
 
       photos = (draft.photos || []).map(p => ({
@@ -838,7 +860,7 @@ async function deleteDraft() {
 
 function sendMail() {
 
-  const ville = v('ville') || '';
+  const ville = getVille() || '';
 
   // ⚠️ ADRESSE À ADAPTER (peut être générique)
   const to = 'astreintes@gpso.fr';
@@ -906,7 +928,7 @@ async function exportDirect() {
   }
 
   const now = new Date();
-  const ville = v('ville') || 'VILLE';
+  const ville = getVille() || 'VILLE';
 
   const id =
     now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
@@ -924,7 +946,7 @@ async function exportDirect() {
     id,
     exportedAt: now.toISOString(),
     form: {
-      ville: v('ville'),
+      ville: getVille(),
       adresse: v('adresse'),
       agentAstreinte: v('agentAstreinte'),
       date: v('date'),
@@ -969,7 +991,7 @@ async function exportDraftByMail() {
   // 1) CONSTRUCTION DES DONNÉES À EXPORTER
   // ─────────────────────────────────────────────────────────
   const now = new Date();
-  const ville = v('ville') || 'VILLE';
+  const ville = getVille() || 'VILLE';
   const id =
     now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
     '_' + ville.toUpperCase().replace(/\s+/g, '_');
@@ -986,7 +1008,7 @@ async function exportDraftByMail() {
     id,
     exportedAt: now.toISOString(),
     form: {
-      ville: v('ville'),
+      ville: getVille(),
       adresse: v('adresse'),
       agentAstreinte: v('agentAstreinte'),
       date: v('date'),
