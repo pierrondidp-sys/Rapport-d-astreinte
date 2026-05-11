@@ -1,11 +1,93 @@
-// ──────────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────[...]
 // AGENT D'ASTREINTE — modifier uniquement cette ligne
-// ──────────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────[...]
 function v(id) { return document.getElementById(id).value; }
 
 let photos = [];
+const DB_NAME = 'AstreintDB';
+const STORE_NAME = 'drafts';
 
-// ── Carte ─────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────[...]
+// ✅ INDEXEDDB - INITIALISATION
+// ───────────────────────────────────────────────────────────────────[...]
+
+function initIndexedDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+
+    request.onerror = () => {
+      console.error('IndexedDB initialization failed');
+      reject(request.error);
+    };
+
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      }
+    };
+
+    request.onsuccess = () => {
+      resolve(request.result);
+    };
+  });
+}
+
+function getDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────[...]
+// ✅ COMPRESSION D'IMAGES
+// ───────────────────────────────────────────────────────────────────[...]
+
+async function compressImage(file) {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    img.onload = () => {
+      // Limite la résolution à 1920x1440 max
+      let width = img.width;
+      let height = img.height;
+      const maxWidth = 1920;
+      const maxHeight = 1440;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round(height * maxWidth / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round(width * maxHeight / height);
+          height = maxHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob((blob) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      }, 'image/jpeg', 0.75); // 75% JPEG quality
+    };
+
+    img.onerror = () => resolve(null);
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// ── Carte ─────────────────────────────────────────────────────────────[...]
 const map = L.map('map').setView([48.82, 2.27], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 let marker = L.marker([48.82, 2.27], { draggable: true }).addTo(map);
@@ -76,10 +158,36 @@ function reverse(ll) {
     });
 }
 
-// ── Photos ────────────────────────────────────────────────────────────────────
+// ── Photos ─────────────────────────────────────────────────────────────[...]
 
-// ✅ VERSION CORRIGÉE (compatible caméra mobile)
-function handleFile(file) {
+// ✅ NOUVELLE FONCTION pour sauvegarder dans la galerie Android/Galaxy
+async function savePhotoToGallery(file) {
+  try {
+    // Créer un blob à partir du fichier
+    const blob = new Blob([file], { type: 'image/jpeg' });
+    
+    // Créer une URL de l'objet
+    const imageUrl = URL.createObjectURL(blob);
+    
+    // Créer un élément 'a' pour télécharger (compatible Android)
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = `photo_astreinte_${Date.now()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Libérer la mémoire
+    URL.revokeObjectURL(imageUrl);
+    
+    console.log('✅ Photo enregistrée dans les téléchargements (visible dans la galerie)');
+  } catch (e) {
+    console.error('Erreur lors de la sauvegarde dans la galerie:', e);
+  }
+}
+
+// ✅ VERSION CORRIGÉE (compatible caméra mobile) + COMPRESSION
+async function handleFile(file) {
   return new Promise(async function (resolve) {
 
     // ✅ Affichage immédiat (évite le bug FileReader mobile)
@@ -104,8 +212,12 @@ function handleFile(file) {
 
     if (!timestamp) timestamp = new Date();
 
+    // ✅ Compression de l'image
+    const compressedBase64 = await compressImage(file);
+
     photos.push({
       dataUrl: objectUrl,
+      base64Compressed: compressedBase64,
       timestamp: timestamp,
       lat: lat,
       lng: lng,
@@ -113,6 +225,10 @@ function handleFile(file) {
     });
 
     renderPreview();
+
+    // ✅ NOUVEAU : Sauvegarder la photo dans la galerie Android
+    await savePhotoToGallery(file);
+
     resolve();
   });
 }
@@ -149,6 +265,13 @@ function formatDate(d) {
     minute: '2-digit',
     second: '2-digit'
   }).format(d instanceof Date ? d : new Date(d));
+}
+
+function formatDateForPDF(dateStr) {
+  // dateStr est au format YYYY-MM-DD
+  if (!dateStr) return 'Date inconnue';
+  const [year, month, day] = dateStr.split('-');
+  return `${day} - ${month} - ${year}`;
 }
 
 function renderPreview() {
@@ -201,6 +324,20 @@ function fileToBase64(file) {
   });
 }
 
+// ✅ NOUVELLE FONCTION pour extraire la ville détectée de l'adresse
+function getDetectedCity() {
+  const adresse = v('adresse') || '';
+  // La dernière partie après le dernier virgule est généralement la ville
+  const parts = adresse.split(',');
+  if (parts.length > 0) {
+    const lastPart = parts[parts.length - 1].trim();
+    // Extrait le code postal et la ville (ex: "75001 Paris" -> "Paris")
+    const cityMatch = lastPart.match(/\d+\s+(.+)/) || [, lastPart];
+    return cityMatch[1] || lastPart;
+  }
+  return '';
+}
+
 function exportPDF() {
 
   const pdf = new jspdf.jsPDF({ unit: 'mm', format: 'a4' });
@@ -231,17 +368,27 @@ function exportPDF() {
   );
   y += 10;
 
+  // ✅ Récupérer la ville sélectionnée dans le select, sinon la ville détectée
+  let villeValue = v('ville');
+  if (!villeValue) {
+    villeValue = getDetectedCity();
+  }
+
+  // ✅ Récupérer et formater la date
+  const dateInput = v('date'); // Format YYYY-MM-DD
+  const formattedDate = formatDateForPDF(dateInput);
+
   // ── TABLEAU ───────────────────────────────────────────
   const rows = [
-    ['VILLE', v('ville')],
+    ['VILLE', villeValue],
     ['ADRESSE', v('adresse')],
     ["Agent d'astreinte", v('agentAstreinte')],
-    ["Date d’intervention", v('date')],
-    ["Heure d’appel", v('heureDebut')],
-    ["Origine de l’appel", v('origine')],
-    ["Heure de Fin d’intervention", v('heureFin')],
-    ["Objet de l’intervention", v('objet')],
-    ["Nature de l’intervention", v('nature')],
+    ["Date d'intervention", formattedDate],
+    ["Heure d'appel", v('heureDebut')],
+    ["Origine de l'appel", v('origine')],
+    ["Heure de Fin d'intervention", v('heureFin')],
+    ["Objet de l'intervention", v('objet')],
+    ["Nature de l'intervention", v('nature')],
     ["Autres personnes appelées", v('autres')]
   ];
 
@@ -285,94 +432,120 @@ function exportPDF() {
     y += rowH;
   });
 
- // ── PHOTOS (PAGE(S) SUIVANTE(S)) ─────────────────────────────────────────
-if (photos.length > 0) {
+  // ── PHOTOS (PAGE(S) SUIVANTE(S)) ─────────────────────────────────────────
+  if (photos.length > 0) {
 
-  pdf.addPage();
-  y = margin;
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(11);
-  pdf.text('PHOTOGRAPHIES', margin, y);
-  y += 8;
-
-  photos.forEach((ph, index) => {
-
-    const blockH = 75;
-    const imgW = 60;
-    const imgH = 45;
-
-    if (y + blockH > pageH - margin) {
-      pdf.addPage();
-      y = margin;
-    }
-
-    // ✅ Cadre principal
-    pdf.setLineWidth(0.6);
-    pdf.rect(margin, y, pageW - margin * 2, blockH);
-
-    // ✅ En-tête du cadre
-    pdf.setLineWidth(0.4);
-    pdf.rect(margin, y, pageW - margin * 2, 8);
+    pdf.addPage();
+    y = margin;
 
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(10);
-    pdf.text(
-      `PHOTO N° ${index + 1}`,
-      margin + 2,
-      y + 6
-    );
+    pdf.setFontSize(11);
+    pdf.text('PHOTOGRAPHIES', margin, y);
+    y += 8;
 
-    // ✅ Image
-    const imgY = y + 12;
-    try {
-      pdf.addImage(
-  ph.base64 || ph.dataUrl,
-  'JPEG',
-  margin + 3,
-  imgY,
-  imgW,
-  imgH
-);
-    } catch (e) {}
+    photos.forEach((ph, index) => {
 
-    // ✅ Zone métadonnées
-    const metaX = margin + imgW + 8;
-    let metaY = imgY + 5;
+      const blockH = 75;
+      const imgW = 60;
+      const imgH = 45;
 
-    pdf.setFont('helvetica', 'bolditalic');
-    pdf.setFontSize(9);
-    pdf.text('Date / heure :', metaX, metaY);
+      if (y + blockH > pageH - margin) {
+        pdf.addPage();
+        y = margin;
+      }
 
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(
-      formatDate(ph.timestamp),
-      metaX + 30,
-      metaY
-    );
+      // ✅ Cadre principal
+      pdf.setLineWidth(0.6);
+      pdf.rect(margin, y, pageW - margin * 2, blockH);
 
-    metaY += 8;
+      // ✅ En-tête du cadre
+      pdf.setLineWidth(0.4);
+      pdf.rect(margin, y, pageW - margin * 2, 8);
 
-    pdf.setFont('helvetica', 'bolditalic');
-    pdf.text('Localisation GPS :', metaX, metaY);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(10);
+      pdf.text(
+        `PHOTO N° ${index + 1}`,
+        margin + 2,
+        y + 6
+      );
 
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(
-      ph.lat != null
-        ? `${ph.lat.toFixed(6)}, ${ph.lng.toFixed(6)}`
-        : 'Non disponible',
-      metaX + 30,
-      metaY
-    );
+      // ✅ Image (utilise la version compressée)
+      const imgY = y + 12;
+      try {
+        pdf.addImage(
+          ph.base64Compressed || ph.dataUrl,
+          'JPEG',
+          margin + 3,
+          imgY,
+          imgW,
+          imgH
+        );
+      } catch (e) { }
 
-    y += blockH + 6;
-  });
-}
+      // ✅ Zone métadonnées
+      const metaX = margin + imgW + 8;
+      let metaY = imgY + 5;
+
+      pdf.setFont('helvetica', 'bolditalic');
+      pdf.setFontSize(9);
+      pdf.text('Date / heure :', metaX, metaY);
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(
+        formatDate(ph.timestamp),
+        metaX + 30,
+        metaY
+      );
+
+      metaY += 8;
+
+      pdf.setFont('helvetica', 'bolditalic');
+      pdf.text('Localisation GPS :', metaX, metaY);
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(
+        ph.lat != null
+          ? `${ph.lat.toFixed(6)}, ${ph.lng.toFixed(6)}`
+          : 'Non disponible',
+        metaX + 30,
+        metaY
+      );
+
+      y += blockH + 6;
+    });
+  }
 
   pdf.save('Intervention_sous_astreintes.pdf');
 }
 
-// ── Sauvegarde locale ─────────────────────────────────────────────────────────
+// ── Sauvegarde locale (IndexedDB) ───────────────────────────────────────────
+
+async function saveDraftIndexedDB(draft) {
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.put(draft);
+
+      tx.oncomplete = () => {
+        resolve();
+      };
+
+      tx.onerror = () => {
+        reject(tx.error);
+      };
+
+      request.onerror = () => {
+        reject(request.error);
+      };
+    });
+  } catch (e) {
+    console.error('IndexedDB save error:', e);
+    throw e;
+  }
+}
 
 async function saveDraft() {
 
@@ -382,16 +555,13 @@ async function saveDraft() {
     now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
     '_' + ville.toUpperCase().replace(/\s+/g, '_');
 
-  // Photos en Base64
-  const photosToSave = [];
-  for (const p of photos) {
-    photosToSave.push({
-  base64: p.base64 || (p.file ? await fileToBase64(p.file) : null),
-  timestamp: p.timestamp,
-  lat: p.lat,
-  lng: p.lng
-});
-  }
+  // ✅ Photos avec compression
+  const photosToSave = photos.map(p => ({
+    base64: p.base64Compressed,
+    timestamp: p.timestamp,
+    lat: p.lat,
+    lng: p.lng
+  }));
 
   const draft = {
     id,
@@ -414,71 +584,101 @@ async function saveDraft() {
 
   // Sauvegarde du brouillon
   try {
-    localStorage.setItem('astreinteDraft_' + id, JSON.stringify(draft));
-
-    // Index des sauvegardes
-    const index =
-      JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
-
-    if (!index.includes(id)) {
-      index.push(id);
-      localStorage.setItem(
-        'astreinteDraftsIndex',
-        JSON.stringify(index)
-      );
-    }
-
+    await saveDraftIndexedDB(draft);
     alert('Brouillon sauvegardé ✅\n\nID : ' + id);
   } catch (e) {
-    if (e.name === 'QuotaExceededError') {
-      alert('❌ Espace de stockage insuffisant.\n\nSupprimez des anciennes sauvegardes ou exportez le rapport en JSON.');
-    } else {
-      alert('❌ Erreur lors de la sauvegarde : ' + e.message);
-    }
-    console.error('localStorage.setItem échec :', e);
+    alert('❌ Erreur lors de la sauvegarde : ' + e.message);
+    console.error('saveDraft échec :', e);
   }
 }
 
-function loadDraft() {
+async function loadDraftIndexedDB(id) {
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get(id);
 
-  const index =
-    JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
+      request.onsuccess = () => {
+        resolve(request.result);
+      };
 
-  if (index.length === 0) {
-    alert('Aucune sauvegarde trouvée.');
-    return;
+      request.onerror = () => {
+        reject(request.error);
+      };
+    });
+  } catch (e) {
+    console.error('IndexedDB load error:', e);
+    throw e;
   }
+}
 
-  const choice = prompt(
-    'Saisissez le numéro de la sauvegarde à charger :\n\n' +
-    index.map((id, i) => `${i + 1} – ${id}`).join('\n')
-  );
+async function getAllDraftsIndexedDB() {
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.getAll();
 
-  const i = parseInt(choice, 10) - 1;
-  if (isNaN(i) || !index[i]) return;
+      request.onsuccess = () => {
+        resolve(request.result);
+      };
 
-  const draft = JSON.parse(
-    localStorage.getItem('astreinteDraft_' + index[i])
-  );
-
-  // Formulaire
-  for (const k in draft.form) {
-    const el = document.getElementById(k);
-    if (el) el.value = draft.form[k];
+      request.onerror = () => {
+        reject(request.error);
+      };
+    });
+  } catch (e) {
+    console.error('IndexedDB getAll error:', e);
+    throw e;
   }
+}
 
-  // Photos
-  photos = draft.photos.map(p => ({
-    base64: p.base64,
-    dataUrl: p.base64,
-    timestamp: new Date(p.timestamp),
-    lat: p.lat,
-    lng: p.lng,
-    file: null
-  }));
+async function loadDraft() {
 
-  renderPreview();
-  alert('Brouillon chargé ✅');
+  try {
+    const drafts = await getAllDraftsIndexedDB();
+
+    if (drafts.length === 0) {
+      alert('Aucune sauvegarde trouvée.');
+      return;
+    }
+
+    const choice = prompt(
+      'Saisissez le numéro de la sauvegarde à charger :\n\n' +
+      drafts.map((d, i) => `${i + 1} – ${d.id}`).join('\n')
+    );
+
+    const i = parseInt(choice, 10) - 1;
+    if (isNaN(i) || !drafts[i]) return;
+
+    const draft = drafts[i];
+
+    // Formulaire
+    for (const k in draft.form) {
+      const el = document.getElementById(k);
+      if (el) el.value = draft.form[k];
+    }
+
+    // Photos
+    photos = (draft.photos || []).map(p => ({
+      base64Compressed: p.base64,
+      dataUrl: p.base64,
+      timestamp: new Date(p.timestamp),
+      lat: p.lat,
+      lng: p.lng,
+      file: null
+    }));
+
+    renderPreview();
+    alert('Brouillon chargé ✅');
+
+  } catch (e) {
+    alert('❌ Erreur lors du chargement : ' + e.message);
+    console.error(e);
+  }
 }
 
 function importDraft() {
@@ -490,23 +690,15 @@ document.getElementById('importFile').addEventListener('change', function (e) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
       const draft = JSON.parse(reader.result);
       const id = draft.id || ('import_' + Date.now());
 
-      // 🔹 Sauvegarde locale
-      localStorage.setItem('astreinteDraft_' + id, JSON.stringify(draft));
+      draft.id = id;
 
-      const index =
-        JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
-      if (!index.includes(id)) {
-        index.push(id);
-        localStorage.setItem(
-          'astreinteDraftsIndex',
-          JSON.stringify(index)
-        );
-      }
+      // 🔹 Sauvegarde IndexedDB
+      await saveDraftIndexedDB(draft);
 
       // 🔹 CHARGEMENT IMMÉDIAT DANS LE FORMULAIRE
       for (const key in draft.form) {
@@ -515,7 +707,7 @@ document.getElementById('importFile').addEventListener('change', function (e) {
       }
 
       photos = (draft.photos || []).map(p => ({
-        base64: p.base64,
+        base64Compressed: p.base64,
         dataUrl: p.base64,
         timestamp: new Date(p.timestamp),
         lat: p.lat,
@@ -537,44 +729,50 @@ document.getElementById('importFile').addEventListener('change', function (e) {
   e.target.value = '';
 });
 
-function deleteDraft() {
+async function deleteDraft() {
 
-  const index =
-    JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
+  try {
+    const drafts = await getAllDraftsIndexedDB();
 
-  if (index.length === 0) {
-    alert('Aucune sauvegarde à supprimer.');
-    return;
+    if (drafts.length === 0) {
+      alert('Aucune sauvegarde à supprimer.');
+      return;
+    }
+
+    const choice = prompt(
+      'Saisissez le numéro de la sauvegarde à SUPPRIMER :\n\n' +
+      drafts.map((d, i) => `${i + 1} – ${d.id}`).join('\n')
+    );
+
+    const i = parseInt(choice, 10) - 1;
+    if (isNaN(i) || !drafts[i]) return;
+
+    const id = drafts[i].id;
+
+    // Confirmation sécurité
+    const ok = confirm(
+      'Voulez-vous vraiment supprimer cette sauvegarde ?\n\n' + id
+    );
+
+    if (!ok) return;
+
+    // Suppression IndexedDB
+    const db = await getDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.delete(id);
+
+      tx.oncomplete = () => {
+        alert('Sauvegarde supprimée ✅');
+        resolve();
+      };
+    });
+
+  } catch (e) {
+    alert('❌ Erreur lors de la suppression : ' + e.message);
+    console.error(e);
   }
-
-  const choice = prompt(
-    'Saisissez le numéro de la sauvegarde à SUPPRIMER :\n\n' +
-    index.map((id, i) => `${i + 1} – ${id}`).join('\n')
-  );
-
-  const i = parseInt(choice, 10) - 1;
-  if (isNaN(i) || !index[i]) return;
-
-  const id = index[i];
-
-  // Confirmation sécurité
-  const ok = confirm(
-    'Voulez-vous vraiment supprimer cette sauvegarde ?\n\n' + id
-  );
-
-  if (!ok) return;
-
-  // Suppression du brouillon
-  localStorage.removeItem('astreinteDraft_' + id);
-
-  // Mise à jour de l’index
-  index.splice(i, 1);
-  localStorage.setItem(
-    'astreinteDraftsIndex',
-    JSON.stringify(index)
-  );
-
-  alert('Sauvegarde supprimée ✅');
 }
 
 function sendMail() {
@@ -601,36 +799,41 @@ function sendMail() {
   window.open(mailto, '_self');
 }
 
-function exportDraft() {
+async function exportDraft() {
 
-  const index =
-    JSON.parse(localStorage.getItem('astreinteDraftsIndex') || '[]');
+  try {
+    const drafts = await getAllDraftsIndexedDB();
 
-  if (index.length === 0) {
-    alert('Aucune sauvegarde à exporter.');
-    return;
+    if (drafts.length === 0) {
+      alert('Aucune sauvegarde à exporter.');
+      return;
+    }
+
+    const choice = prompt(
+      'Exporter quelle sauvegarde ?\n\n' +
+      drafts.map((d, i) => `${i + 1} – ${d.id}`).join('\n')
+    );
+
+    const i = parseInt(choice, 10) - 1;
+    if (isNaN(i) || !drafts[i]) return;
+
+    const draft = drafts[i];
+    const draftJSON = JSON.stringify(draft, null, 2);
+
+    const blob = new Blob([draftJSON], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'astreinte_' + draft.id + '.json';
+    a.click();
+
+    URL.revokeObjectURL(url);
+
+  } catch (e) {
+    alert('❌ Erreur lors de l\'export : ' + e.message);
+    console.error(e);
   }
-
-  const choice = prompt(
-    'Exporter quelle sauvegarde ?\n\n' +
-    index.map((id, i) => `${i + 1} – ${id}`).join('\n')
-  );
-
-  const i = parseInt(choice, 10) - 1;
-  if (isNaN(i) || !index[i]) return;
-
-  const id = index[i];
-  const draft = localStorage.getItem('astreinteDraft_' + id);
-
-  const blob = new Blob([draft], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'astreinte_' + id + '.json';
-  a.click();
-
-  URL.revokeObjectURL(url);
 }
 
 async function exportDirect() {
@@ -648,16 +851,13 @@ async function exportDirect() {
     now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
     '_' + ville.toUpperCase().replace(/\s+/g, '_');
 
-  // ✅ Conversion Base64 des photos nouvellement capturées (Object URL → Base64)
-  const photosToExport = [];
-  for (const p of photos) {
-    photosToExport.push({
-      base64: p.base64 || (p.file ? await fileToBase64(p.file) : null),
-      timestamp: p.timestamp,
-      lat: p.lat,
-      lng: p.lng
-    });
-  }
+  // ✅ Utilise les images déjà compressées
+  const photosToExport = photos.map(p => ({
+    base64: p.base64Compressed,
+    timestamp: p.timestamp,
+    lat: p.lat,
+    lng: p.lng
+  }));
 
   const data = {
     id,
@@ -713,15 +913,13 @@ async function exportDraftByMail() {
     now.toISOString().slice(0, 16).replace(/[:T]/g, '-') +
     '_' + ville.toUpperCase().replace(/\s+/g, '_');
 
-  const photosToExport = [];
-  for (const p of photos) {
-    photosToExport.push({
-      base64: p.base64 || (p.file ? await fileToBase64(p.file) : null),
-      timestamp: p.timestamp,
-      lat: p.lat,
-      lng: p.lng
-    });
-  }
+  // ✅ Utilise les images déjà compressées
+  const photosToExport = photos.map(p => ({
+    base64: p.base64Compressed,
+    timestamp: p.timestamp,
+    lat: p.lat,
+    lng: p.lng
+  }));
 
   const data = {
     id,
@@ -767,7 +965,7 @@ async function exportDraftByMail() {
     const to = buildAgentEmail(agent);
 
     if (!to) {
-      alert("Impossible de déterminer l'adresse mail de l’agent.");
+      alert("Impossible de déterminer l'adresse mail de l'agent.");
       return;
     }
 
@@ -775,7 +973,7 @@ async function exportDraftByMail() {
     const body =
       `Bonjour,\n\n` +
       `Veuillez trouver en pièce jointe la sauvegarde ` +
-      `d’un rapport d’intervention concernant la ville de ${ville}.\n\n` +
+      `d'un rapport d'intervention concernant la ville de ${ville}.\n\n` +
       `Cordialement.`;
 
     const mailto =
@@ -787,7 +985,7 @@ async function exportDraftByMail() {
   }, 800);
 }
 
-// ── Dictée vocale ─────────────────────────────────────────────────────────────
+// ── Dictée vocale ─────────────────────────────────────────────────────────
 
 function startDictation(fieldId) {
   const SpeechRecognition =
@@ -824,10 +1022,10 @@ function startDictation(fieldId) {
 
   recog.onerror = function (e) {
     const messages = {
-      'not-allowed':  "Accès au microphone refusé. Autorisez-le dans les paramètres du navigateur.",
-      'no-speech':    "Aucune parole détectée. Réessayez.",
-      'network':      "Erreur réseau lors de la dictée. Vérifiez votre connexion.",
-      'aborted':      "Dictée interrompue."
+      'not-allowed': "Accès au microphone refusé. Autorisez-le dans les paramètres du navigateur.",
+      'no-speech': "Aucune parole détectée. Réessayez.",
+      'network': "Erreur réseau lors de la dictée. Vérifiez votre connexion.",
+      'aborted': "Dictée interrompue."
     };
     alert(messages[e.error] || 'Erreur dictée : ' + e.error);
   };
@@ -861,4 +1059,9 @@ document.addEventListener('DOMContentLoaded', () => {
     micButton.title =
       "Utilisez le micro du clavier Android pour dicter le texte";
   }
+
+  // ✅ Initialise IndexedDB au chargement
+  initIndexedDB().catch(e => {
+    console.error('Failed to initialize IndexedDB:', e);
+  });
 });
