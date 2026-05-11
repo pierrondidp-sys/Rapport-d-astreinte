@@ -865,12 +865,14 @@ function sendMail() {
   // ⚠️ ADRESSE À ADAPTER (peut être générique)
   const to = 'astreintes@gpso.fr';
 
-  const subject = `Rapport d'intervention - ${ville}`;
+  // Objet identique au nom du fichier PDF (sans extension)
+  const subject = generateFileName('pdf').replace(/\.pdf$/, '');
 
   const body =
     `Bonjour,\n\n` +
     `Je vous prie de bien vouloir trouver, en pièce jointe, ` +
     `un rapport d'intervention concernant la ville de ${ville}.\n\n` +
+    `Lien vers l'application : Rapport d'astreinte https://pierrondidp-sys.github.io/Rapport-d-astreinte/\n\n` +
     `Cordialement.`;
 
   const mailto =
@@ -1052,11 +1054,13 @@ async function exportDraftByMail() {
       return;
     }
 
-    const subject = `Sauvegarde intervention – ${ville}`;
+    // Objet identique au nom du fichier export (sans extension)
+    const subject = generateFileName('json').replace(/\.json$/, '');
     const body =
       `Bonjour,\n\n` +
       `Veuillez trouver en pièce jointe la sauvegarde ` +
       `d'un rapport d'intervention concernant la ville de ${ville}.\n\n` +
+      `Lien vers l'application : Rapport d'astreinte https://pierrondidp-sys.github.io/Rapport-d-astreinte/\n\n` +
       `Cordialement.`;
 
     const mailto =
