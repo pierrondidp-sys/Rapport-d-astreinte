@@ -1,15 +1,15 @@
-// ─────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────[...]
 // AGENT D'ASTREINTE — modifier uniquement cette ligne
-// ─────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────[...]
 function v(id) { return document.getElementById(id).value; }
 
 let photos = [];
 const DB_NAME = 'AstreintDB';
 const STORE_NAME = 'drafts';
 
-// ─────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────[...]
 // ✅ INDEXEDDB - INITIALISATION
-// ─────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────[...]
 
 function initIndexedDB() {
   return new Promise((resolve, reject) => {
@@ -41,9 +41,9 @@ function getDB() {
   });
 }
 
-// ──────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────[...]
 // ✅ COMPRESSION D'IMAGES
-// ──────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────[...]
 
 async function compressImage(file) {
   return new Promise((resolve) => {
@@ -87,7 +87,7 @@ async function compressImage(file) {
   });
 }
 
-// ── Carte ─────────────────────────────────────────────────────────────────
+// ── Carte ─────────────────────────────────────────────────────────────[...]
 const map = L.map('map').setView([48.82, 2.27], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 let marker = L.marker([48.82, 2.27], { draggable: true }).addTo(map);
@@ -158,7 +158,7 @@ function reverse(ll) {
     });
 }
 
-// ── Photos ─────────────────────────────────────────────────────────────────
+// ── Photos ─────────────────────────────────────────────────────────────[...]
 
 // ✅ VERSION CORRIGÉE (compatible caméra mobile) + COMPRESSION
 async function handleFile(file) {
@@ -237,6 +237,13 @@ function formatDate(d) {
   }).format(d instanceof Date ? d : new Date(d));
 }
 
+function formatDateForPDF(dateStr) {
+  // dateStr est au format YYYY-MM-DD
+  if (!dateStr) return 'Date inconnue';
+  const [year, month, day] = dateStr.split('-');
+  return `${day} - ${month} - ${year}`;
+}
+
 function renderPreview() {
   const preview = document.getElementById('preview');
   preview.innerHTML = '';
@@ -287,6 +294,20 @@ function fileToBase64(file) {
   });
 }
 
+// ✅ NOUVELLE FONCTION pour extraire la ville détectée de l'adresse
+function getDetectedCity() {
+  const adresse = v('adresse') || '';
+  // La dernière partie après le dernier virgule est généralement la ville
+  const parts = adresse.split(',');
+  if (parts.length > 0) {
+    const lastPart = parts[parts.length - 1].trim();
+    // Extrait le code postal et la ville (ex: "75001 Paris" -> "Paris")
+    const cityMatch = lastPart.match(/\d+\s+(.+)/) || [, lastPart];
+    return cityMatch[1] || lastPart;
+  }
+  return '';
+}
+
 function exportPDF() {
 
   const pdf = new jspdf.jsPDF({ unit: 'mm', format: 'a4' });
@@ -317,12 +338,22 @@ function exportPDF() {
   );
   y += 10;
 
+  // ✅ Récupérer la ville sélectionnée dans le select, sinon la ville détectée
+  let villeValue = v('ville');
+  if (!villeValue) {
+    villeValue = getDetectedCity();
+  }
+
+  // ✅ Récupérer et formater la date
+  const dateInput = v('date'); // Format YYYY-MM-DD
+  const formattedDate = formatDateForPDF(dateInput);
+
   // ── TABLEAU ───────────────────────────────────────────
   const rows = [
-    ['VILLE', v('ville')],
+    ['VILLE', villeValue],
     ['ADRESSE', v('adresse')],
     ["Agent d'astreinte", v('agentAstreinte')],
-    ["Date d'intervention", v('date')],
+    ["Date d'intervention", formattedDate],
     ["Heure d'appel", v('heureDebut')],
     ["Origine de l'appel", v('origine')],
     ["Heure de Fin d'intervention", v('heureFin')],
