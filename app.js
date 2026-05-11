@@ -872,7 +872,6 @@ function sendMail() {
     `Bonjour,\n\n` +
     `Je vous prie de bien vouloir trouver, en pièce jointe, ` +
     `un rapport d'intervention concernant la ville de ${ville}.\n\n` +
-    `Lien vers l'application : Rapport d'astreinte https://pierrondidp-sys.github.io/Rapport-d-astreinte/\n\n` +
     `Cordialement.`;
 
   const mailto =
@@ -1060,7 +1059,6 @@ async function exportDraftByMail() {
       `Bonjour,\n\n` +
       `Veuillez trouver en pièce jointe la sauvegarde ` +
       `d'un rapport d'intervention concernant la ville de ${ville}.\n\n` +
-      `Lien vers l'application : Rapport d'astreinte https://pierrondidp-sys.github.io/Rapport-d-astreinte/\n\n` +
       `Cordialement.`;
 
     const mailto =
