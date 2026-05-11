@@ -7,9 +7,9 @@ let photos = [];
 const DB_NAME = 'AstreintDB';
 const STORE_NAME = 'drafts';
 
-// ───────────────────────────────────────────────────────────────────[...]
+// ─────────────────────────────────────────────────────────────────�[...]
 // ✅ INDEXEDDB - INITIALISATION
-// ───────────────────────────────────────────────────────────────────[...]
+// ─────────────────────────────────────────────────────────────────�[...]
 
 function initIndexedDB() {
   return new Promise((resolve, reject) => {
@@ -41,9 +41,9 @@ function getDB() {
   });
 }
 
-// ───────────────────────────────────────────────────────────────────[...]
+// ─────────────────────────────────────────────────────────────────�[...]
 // ✅ COMPRESSION D'IMAGES
-// ───────────────────────────────────────────────────────────────────[...]
+// ─────────────────────────────────────────────────────────────────�[...]
 
 async function compressImage(file) {
   return new Promise((resolve) => {
@@ -87,7 +87,7 @@ async function compressImage(file) {
   });
 }
 
-// ── Carte ─────────────────────────────────────────────────────────────[...]
+// ── Carte ────────────────────────────────────────────────────────────[...]
 const map = L.map('map').setView([48.82, 2.27], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 let marker = L.marker([48.82, 2.27], { draggable: true }).addTo(map);
@@ -158,7 +158,7 @@ function reverse(ll) {
     });
 }
 
-// ── Photos ─────────────────────────────────────────────────────────────[...]
+// ── Photos ───────────────────────────────────────────────────────────–[...]
 
 // ✅ NOUVELLE FONCTION pour sauvegarder dans la galerie Android/Galaxy
 async function savePhotoToGallery(file) {
@@ -187,7 +187,7 @@ async function savePhotoToGallery(file) {
 }
 
 // ✅ VERSION CORRIGÉE (compatible caméra mobile) + COMPRESSION
-async function handleFile(file) {
+async function handleFile(file, fromCamera = false) {
   return new Promise(async function (resolve) {
 
     // ✅ Affichage immédiat (évite le bug FileReader mobile)
@@ -226,26 +226,28 @@ async function handleFile(file) {
 
     renderPreview();
 
-    // ✅ NOUVEAU : Sauvegarder la photo dans la galerie Android
-    await savePhotoToGallery(file);
+    // ✅ Sauvegarder dans la galerie UNIQUEMENT si depuis la caméra
+    if (fromCamera) {
+      await savePhotoToGallery(file);
+    }
 
     resolve();
   });
 }
 
-async function handleFiles(files) {
+async function handleFiles(files, fromCamera = false) {
   for (let i = 0; i < files.length; i++) {
-    await handleFile(files[i]);
+    await handleFile(files[i], fromCamera);
   }
 }
 
 document.getElementById('photoCamera').addEventListener('change', async function (e) {
-  await handleFiles(e.target.files);
+  await handleFiles(e.target.files, true); // ✅ fromCamera = true
   e.target.value = '';
 });
 
 document.getElementById('photoGallery').addEventListener('change', async function (e) {
-  await handleFiles(e.target.files);
+  await handleFiles(e.target.files, false); // ✅ fromCamera = false
   e.target.value = '';
 });
 
@@ -272,6 +274,35 @@ function formatDateForPDF(dateStr) {
   if (!dateStr) return 'Date inconnue';
   const [year, month, day] = dateStr.split('-');
   return `${day} - ${month} - ${year}`;
+}
+
+// ✅ NOUVELLE FONCTION pour extraire la rue de l'adresse
+function extractStreet() {
+  const adresse = v('adresse') || '';
+  // L'adresse est au format "numero rue, code_postal ville"
+  const parts = adresse.split(',');
+  if (parts.length > 0) {
+    // Prendre la première partie (numero + rue)
+    return parts[0].trim().replace(/\s+/g, '_').toUpperCase();
+  }
+  return 'RUE';
+}
+
+// ✅ NOUVELLE FONCTION pour générer le nom avec la nouvelle règle
+function generateFileName(fileExtension = 'pdf') {
+  const ville = v('ville') || 'VILLE';
+  const rue = extractStreet();
+  const objet = (v('objet') || 'OBJET').replace(/\s+/g, '_').toUpperCase();
+  const dateInput = v('date'); // Format YYYY-MM-DD
+  
+  let formattedDate = 'JJ-MM-AAAA';
+  if (dateInput) {
+    const [year, month, day] = dateInput.split('-');
+    formattedDate = `${day}-${month}-${year}`;
+  }
+
+  const fileName = `${ville}_${rue}_${objet}_${formattedDate}.${fileExtension}`;
+  return fileName;
 }
 
 function renderPreview() {
@@ -516,7 +547,9 @@ function exportPDF() {
     });
   }
 
-  pdf.save('Intervention_sous_astreintes.pdf');
+  // ✅ Utilise le nouveau système de nommage
+  const fileName = generateFileName('pdf');
+  pdf.save(fileName);
 }
 
 // ── Sauvegarde locale (IndexedDB) ───────────────────────────────────────────
@@ -825,7 +858,7 @@ async function exportDraft() {
 
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'astreinte_' + draft.id + '.json';
+    a.download = generateFileName('json');
     a.click();
 
     URL.revokeObjectURL(url);
@@ -884,7 +917,7 @@ async function exportDirect() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'astreinte_' + id + '.json';
+  a.download = generateFileName('json');
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -948,7 +981,7 @@ async function exportDraftByMail() {
   );
 
   const url = URL.createObjectURL(blob);
-  const fileName = 'astreinte_' + id + '.json';
+  const fileName = generateFileName('json');
 
   const a = document.createElement('a');
   a.href = url;
@@ -985,7 +1018,7 @@ async function exportDraftByMail() {
   }, 800);
 }
 
-// ── Dictée vocale ─────────────────────────────────────────────────────────
+// ── Dictée vocale ────────────────────────────────────────────────────────–[...]
 
 function startDictation(fieldId) {
   const SpeechRecognition =
